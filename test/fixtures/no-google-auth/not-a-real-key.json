@@ -1,0 +1,3 @@
+{
+  "comment": "Not a credential. An empty placeholder so gsc.py gets past its key-file check and reaches the google-auth import."
+}
