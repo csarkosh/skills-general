@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Marked } from './vendor/marked.esm.js';
+import { Marked } from './vendor/marked.esm.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);

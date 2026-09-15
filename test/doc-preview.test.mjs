@@ -1,6 +1,6 @@
 // Offline: doc-preview's script renders a doc on its own, with no install step and no network.
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { it } from 'node:test';
 import { ROOT, SAMPLE_DOC, runOk, sampleRepo, tempDir } from './helpers.mjs';
@@ -28,4 +28,17 @@ it('renders a self-contained page from a doc', (t) => {
     assert.ok(html.includes(`<link rel="icon" href="data:${type};base64,${bytes.toString('base64')}"`), `the ${file} favicon is embedded`);
   }
   assert.doesNotMatch(html, /<(?:link|script)[^>]+(?:href|src)="https?:/, 'nothing loads from the network');
+});
+
+// Regression: installs live under ~/.claude, whose package.json can say "type": "commonjs". Node then
+// reads any vendored .js file as CommonJS, so every module the script imports must be .mjs.
+it('renders from an install under a package.json that declares CommonJS', (t) => {
+  const parent = tempDir(t, 'commonjs');
+  writeFileSync(join(parent, 'package.json'), '{ "type": "commonjs" }\n');
+  const skill = join(parent, 'doc-preview');
+  cpSync(join(ROOT, 'plugins/general/skills/doc-preview'), skill, { recursive: true });
+  const repo = sampleRepo(t);
+  const out = tempDir(t, 'out');
+  runOk('node', [join(skill, 'scripts/render.mjs'), SAMPLE_DOC, '--out', out, '--no-open'], { cwd: repo });
+  assert.ok(existsSync(join(out, '2026-01-02-sample-doc.html')));
 });
