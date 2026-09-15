@@ -1,6 +1,6 @@
 {
   "name": "general",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Skills that work in both Claude Code and Codex.",
   "author": {
     "name": "Cyrus Sarkosh"

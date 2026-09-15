@@ -51,6 +51,16 @@ const favicons = [
   `<link rel="icon" href="${dataUri('favicon-96x96.png', 'image/png')}" type="image/png" sizes="96x96">`,
 ].join('\n');
 
+// The same "cs" tile in the header and footer, built from favicon.svg so the shape never drifts from
+// the site's icon, with its colours swapped: a green tile and black text. The fills become classes so
+// the --mark-* tokens can give each theme its own green. Throws if the favicon's fills ever change.
+const faviconSvg = readFileSync(fileURLToPath(new URL('../assets/favicon/favicon.svg', import.meta.url)), 'utf8');
+const markSvg = faviconSvg.replace('fill="#0a0b0e"', 'class="mark-tile"').replace('fill="#7dd3c0"', 'class="mark-glyph"');
+if (!markSvg.includes('class="mark-tile"') || !markSvg.includes('class="mark-glyph"')) {
+  throw new Error('assets/favicon/favicon.svg no longer has the expected fills; update the mark in render.mjs');
+}
+const brandMark = (size) => markSvg.replace('<svg ', `<svg class="mark" width="${size}" height="${size}" aria-hidden="true" focusable="false" `);
+
 // The first H1 becomes the page header; every H2 becomes a section and a stop on the contents rail.
 // A numbered H2 ("1. Outlines") shows its number as a mono section label ("01") above the title.
 const marked = new Marked({ gfm: true });
@@ -134,6 +144,9 @@ ${fonts}
   --accent-glow: rgba(125, 211, 192, 0.10);
   --accent-underline: rgba(125, 211, 192, 0.35);
   --nav-bg: rgba(10, 11, 14, 0.72);
+  /* The brand mark: the favicon with its colours swapped. Black on mint is 11.2:1. */
+  --mark-bg: #7dd3c0;
+  --mark-fg: #0a0b0e;
   --sans: "Inter", "Inter Fallback", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --radius: 14px;
@@ -155,6 +168,10 @@ ${fonts}
     --accent-glow: rgba(125, 211, 192, 0.30);
     --accent-underline: rgba(10, 115, 95, 0.35);
     --nav-bg: rgba(246, 247, 249, 0.78);
+    /* Mint vanishes on a light page and the deep accent is too dark for black text, so the mark
+       takes the mint's hue at the lightness that clears both: black text 5.6:1, tile vs page 3.3:1. */
+    --mark-bg: #349882;
+    --mark-fg: #0a0b0e;
   }
 }
 
@@ -175,8 +192,11 @@ body::before {
   backdrop-filter: saturate(140%) blur(12px); -webkit-backdrop-filter: saturate(140%) blur(12px);
 }
 .nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 60px; }
-.wordmark { font: 500 15px var(--mono); letter-spacing: -0.01em; color: var(--text); text-decoration: none; }
-.wordmark span { color: var(--accent); }
+.wordmark { font: 500 15px var(--mono); letter-spacing: -0.01em; color: var(--text); text-decoration: none; display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.mark { display: block; flex: none; }
+.mark .mark-tile { fill: var(--mark-bg); }
+.mark .mark-glyph { fill: var(--mark-fg); }
+.wordmark .name span { color: var(--accent); }
 .nav .path { font: 12.5px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 64px; padding-block: 72px 96px; }
@@ -248,6 +268,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 48px 0; }
 footer { border-top: 1px solid var(--border); padding-block: 28px 40px; color: var(--faint); font-size: 13px; }
 footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 footer .mono { font-family: var(--mono); }
+footer .brand { display: inline-flex; align-items: center; gap: 8px; }
 
 @media (max-width: 640px) {
   .nav .path { display: none; }
@@ -267,7 +288,7 @@ footer .mono { font-family: var(--mono); }
 <body>
 <nav class="nav" aria-label="Document">
   <div class="wrap">
-    <a class="wordmark" href="#top">${escape(repoName)}${topFolder ? `<span>/${escape(topFolder)}</span>` : ''}</a>
+    <a class="wordmark" href="#top">${brandMark(26)}<span class="name">${escape(repoName)}${topFolder ? `<span>/${escape(topFolder)}</span>` : ''}</span></a>
     <span class="path">${escape(repoPath)}</span>
   </div>
 </nav>
@@ -286,7 +307,7 @@ footer .mono { font-family: var(--mono); }
   </main>
 </div>
 <footer>
-  <div class="wrap"><span>${escape(repoName)}</span><span class="mono">${escape(repoPath)}</span></div>
+  <div class="wrap"><span class="brand">${brandMark(20)}${escape(repoName)}</span><span class="mono">${escape(repoPath)}</span></div>
 </footer>
 <script>
   const links = [...document.querySelectorAll('.rail a')];

@@ -30,6 +30,44 @@ it('renders a self-contained page from a doc', (t) => {
   assert.doesNotMatch(html, /<(?:link|script)[^>]+(?:href|src)="https?:/, 'nothing loads from the network');
 });
 
+// WCAG relative luminance and contrast ratio for #rrggbb colours.
+function contrast(a, b) {
+  const lum = (hex) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+it('brands the header and footer with the favicon tile, readable in both themes', (t) => {
+  const repo = sampleRepo(t);
+  const out = tempDir(t, 'out');
+  runOk('node', [RENDER, SAMPLE_DOC, '--out', out, '--no-open'], { cwd: repo });
+  const html = readFileSync(join(out, '2026-01-02-sample-doc.html'), 'utf8');
+
+  const nav = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
+  const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
+  for (const [where, part] of [['header', nav], ['footer', footer]]) {
+    assert.match(part, /<svg class="mark" width="\d+" height="\d+" aria-hidden="true"[^>]*><rect[^>]*class="mark-tile"\/><text[^>]*class="mark-glyph">cs<\/text><\/svg>/, `the ${where} carries the mark`);
+  }
+
+  // The swap: the tile is green and the glyph black, in the dark :root block and the light override.
+  const token = (css, name) => new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, 'i').exec(css)?.[1];
+  const dark = html.slice(html.indexOf(':root {'), html.indexOf('@media (prefers-color-scheme: light)'));
+  const light = html.slice(html.indexOf('@media (prefers-color-scheme: light)'));
+  for (const [theme, css] of [['dark', dark], ['light', light]]) {
+    const [tile, glyph, page] = [token(css, 'mark-bg'), token(css, 'mark-fg'), token(css, 'bg')];
+    assert.ok(tile && glyph && page, `the ${theme} theme defines --mark-bg, --mark-fg and --bg`);
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(tile.slice(i, i + 2), 16));
+    assert.ok(g > r && g > b, `the ${theme} tile ${tile} is green`);
+    assert.ok(contrast(glyph, '#000000') < 1.2, `the ${theme} glyph ${glyph} is black`);
+    assert.ok(contrast(tile, glyph) >= 4.5, `the ${theme} glyph is readable on its tile (${contrast(tile, glyph).toFixed(2)}:1)`);
+    assert.ok(contrast(tile, page) >= 3, `the ${theme} tile stands out from the page (${contrast(tile, page).toFixed(2)}:1)`);
+  }
+});
+
 // Regression: installs live under ~/.claude, whose package.json can say "type": "commonjs". Node then
 // reads any vendored .js file as CommonJS, so every module the script imports must be .mjs.
 it('renders from an install under a package.json that declares CommonJS', (t) => {

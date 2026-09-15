@@ -41,6 +41,10 @@ The page is built from the doc itself:
 - external links open in a new tab and carry a ↗ mark
 - the tab shows csarko.sh's favicon (`assets/favicon/`, copied from the live site with the
   PNG's EXIF chunk stripped). If the site's favicon changes, copy the new files across
+- the header and footer carry the same "cs" tile with its colours swapped, a green tile with
+  black text, built from `assets/favicon/favicon.svg`. Its greens are the `--mark-bg` tokens:
+  csarko.sh's mint in dark mode, and a darker green of the same hue in light mode, where mint
+  would vanish against the page
 
 Everything is inlined, fonts and favicon included, so the page also works offline. The fonts are SIL OFL
 1.1 (`assets/fonts/OFL.txt`) and `marked` is MIT (`scripts/vendor/marked-LICENSE.md`).
