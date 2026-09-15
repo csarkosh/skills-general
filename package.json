@@ -1,0 +1,13 @@
+{
+  "name": "skills-general",
+  "private": true,
+  "type": "module",
+  "description": "Agent skills shared across Cyrus Sarkosh's repositories, as a plugin marketplace for Claude Code and Codex.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "test:offline": "SKILLS_LIVE=0 node --test \"test/*.test.mjs\""
+  }
+}

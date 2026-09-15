@@ -1,0 +1,21 @@
+{
+  "name": "csarkosh",
+  "owner": {
+    "name": "Cyrus Sarkosh"
+  },
+  "metadata": {
+    "description": "Agent skills shared across Cyrus Sarkosh's repositories."
+  },
+  "plugins": [
+    {
+      "name": "general",
+      "source": "./plugins/general",
+      "description": "Skills that work in both Claude Code and Codex."
+    },
+    {
+      "name": "general-claude",
+      "source": "./plugins/general-claude",
+      "description": "Skills that depend on Claude Code's own tools."
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "csarkosh",
+  "interface": {
+    "displayName": "csarkosh"
+  },
+  "plugins": [
+    {
+      "name": "general",
+      "source": {
+        "source": "local",
+        "path": "./plugins/general"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "general",
+  "version": "0.1.0",
+  "description": "Skills that work in both Claude Code and Codex.",
+  "author": {
+    "name": "Cyrus Sarkosh"
+  },
+  "repository": "https://github.com/csarkosh/skills-general",
+  "license": "MIT",
+  "skills": "./skills/"
+}

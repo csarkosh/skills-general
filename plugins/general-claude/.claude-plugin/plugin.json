@@ -1,0 +1,10 @@
+{
+  "name": "general-claude",
+  "version": "0.1.0",
+  "description": "Skills that depend on Claude Code's own tools.",
+  "author": {
+    "name": "Cyrus Sarkosh"
+  },
+  "repository": "https://github.com/csarkosh/skills-general",
+  "license": "MIT"
+}

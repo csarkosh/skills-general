@@ -1,0 +1,27 @@
+// Offline: doc-preview's script renders a doc on its own, with no install step and no network.
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { it } from 'node:test';
+import { ROOT, SAMPLE_DOC, runOk, sampleRepo, tempDir } from './helpers.mjs';
+
+const RENDER = join(ROOT, 'plugins/general/skills/doc-preview/scripts/render.mjs');
+
+it('renders a self-contained page from a doc', (t) => {
+  const repo = sampleRepo(t);
+  const out = tempDir(t, 'out');
+  const { stdout } = runOk('node', [RENDER, SAMPLE_DOC, '--out', out, '--no-open'], { cwd: repo });
+  const page = join(out, '2026-01-02-sample-doc.html');
+  assert.equal(stdout.trim(), page);
+  assert.ok(existsSync(page));
+
+  const html = readFileSync(page, 'utf8');
+  assert.match(html, /<title>Sample research note<\/title>/);
+  assert.match(html, /sample-repo<span>\/docs<\/span>/, 'the nav shows the repository and top folder');
+  assert.match(html, /rendering · Jan 2, 2026/, 'the eyebrow shows the folder and the date from the file name');
+  assert.match(html, /<p class="section-label">01<\/p><h2 id="a-numbered-section">/, 'a numbered H2 gets a mono label');
+  assert.match(html, /<div class="scroll"><table>/, 'tables scroll in their own box');
+  assert.match(html, /href="https:\/\/csarko\.sh" target="_blank" rel="noopener" class="external"/);
+  assert.equal((html.match(/src: url\(data:font\/woff2;base64,/g) ?? []).length, 2, 'both fonts are embedded');
+  assert.doesNotMatch(html, /<(?:link|script)[^>]+(?:href|src)="https?:/, 'nothing loads from the network');
+});
