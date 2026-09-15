@@ -43,6 +43,14 @@ const fonts = [
   fontFace('JetBrains Mono', '400 500', 'jetbrains-mono-latin-var.woff2'),
 ].join('\n');
 
+// csarko.sh's favicon, as the site serves it: the SVG, with the 96px PNG for browsers without SVG
+// icons. Embedded as data URIs for the same offline reason as the fonts.
+const dataUri = (file, type) => `data:${type};base64,${readFileSync(fileURLToPath(new URL(`../assets/favicon/${file}`, import.meta.url))).toString('base64')}`;
+const favicons = [
+  `<link rel="icon" href="${dataUri('favicon.svg', 'image/svg+xml')}" type="image/svg+xml">`,
+  `<link rel="icon" href="${dataUri('favicon-96x96.png', 'image/png')}" type="image/png" sizes="96x96">`,
+].join('\n');
+
 // The first H1 becomes the page header; every H2 becomes a section and a stop on the contents rail.
 // A numbered H2 ("1. Outlines") shows its number as a mono section label ("01") above the title.
 const marked = new Marked({ gfm: true });
@@ -103,6 +111,7 @@ const page = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>${escape(title)}</title>
+${favicons}
 <style>
 ${fonts}
 @font-face { font-family: "Inter Fallback"; src: local("Arial"); size-adjust: 107.35%; ascent-override: 90.24%; descent-override: 22.47%; line-gap-override: 0%; }

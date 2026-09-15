@@ -39,8 +39,10 @@ The page is built from the doc itself:
 - the eyebrow shows the doc's folder, plus its date when the name follows `YYYY-MM-DD-<topic>.md`
 - tables and code blocks scroll sideways inside their own boxes
 - external links open in a new tab and carry a ↗ mark
+- the tab shows csarko.sh's favicon (`assets/favicon/`, copied from the live site with the
+  PNG's EXIF chunk stripped). If the site's favicon changes, copy the new files across
 
-Everything is inlined, fonts included, so the page also works offline. The fonts are SIL OFL
+Everything is inlined, fonts and favicon included, so the page also works offline. The fonts are SIL OFL
 1.1 (`assets/fonts/OFL.txt`) and `marked` is MIT (`scripts/vendor/marked-LICENSE.md`).
 
 ## Common mistakes

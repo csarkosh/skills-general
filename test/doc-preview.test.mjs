@@ -23,5 +23,9 @@ it('renders a self-contained page from a doc', (t) => {
   assert.match(html, /<div class="scroll"><table>/, 'tables scroll in their own box');
   assert.match(html, /href="https:\/\/csarko\.sh" target="_blank" rel="noopener" class="external"/);
   assert.equal((html.match(/src: url\(data:font\/woff2;base64,/g) ?? []).length, 2, 'both fonts are embedded');
+  for (const [file, type] of [['favicon.svg', 'image/svg+xml'], ['favicon-96x96.png', 'image/png']]) {
+    const bytes = readFileSync(join(ROOT, 'plugins/general/skills/doc-preview/assets/favicon', file));
+    assert.ok(html.includes(`<link rel="icon" href="data:${type};base64,${bytes.toString('base64')}"`), `the ${file} favicon is embedded`);
+  }
   assert.doesNotMatch(html, /<(?:link|script)[^>]+(?:href|src)="https?:/, 'nothing loads from the network');
 });
