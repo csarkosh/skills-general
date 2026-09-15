@@ -7,11 +7,15 @@ Agent skills I share across my repositories, packaged as one plugin marketplace 
 
 | Plugin | For | Skills |
 | --- | --- | --- |
-| `general` | Claude Code and Codex | `doc-preview`: open a markdown doc as a styled page in Chrome |
+| `general` | Claude Code and Codex | `doc-preview`: open a markdown doc as a styled page in Chrome<br>`search-console`: report a static site's Google indexing, sitemap and search performance |
 | `general-claude` | Claude Code only | `doc-artifact`: publish a markdown doc as a claude.ai Artifact |
 
 Each skill is a folder with a `SKILL.md` in the open [Agent Skills](https://agentskills.io)
 format. Both agents read the same folder, and each plugin carries one small manifest per agent.
+
+Scripts carry their own dependencies, so a skill needs only Node — except `search-console`,
+which is Python: 3.9 or newer plus `google-auth`
+(`python3 -m pip install --user google-auth`), and `gcloud` for its one-time setup script.
 
 ## Use it in a repository
 
