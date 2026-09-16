@@ -31,7 +31,7 @@
 
 **Interfaces:**
 - Consumes: `ROOT` from `test/helpers.mjs`.
-- Produces: the template's section headings `## Stance`, `## Criteria`, `## Templates`, `## Log`; setup placeholders written `<fill in: …>`; reply slots `{name}`, `{role}`, `{company}`. Task 2's `SKILL.md` refers to all of these by exactly these spellings.
+- Produces: the template's section headings `## Stance`, `## Scope`, `## Criteria`, `## Templates`, `## Log`; fit rows `Promising`, `Needs info`, `Poor fit`, `Not a recruiter`; setup placeholders written `<fill in: …>`; reply slots `{name}`, `{role}`, `{company}`, `{question}`. Task 2's `SKILL.md` refers to all of these by exactly these spellings.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -52,12 +52,20 @@ const skillText = read(join(SKILL, 'SKILL.md'));
 const template = read(join(SKILL, 'references/preferences-template.md'));
 
 describe('recruiter-replies', () => {
-  it('ships a preferences template with the four sections', () => {
+  it('ships a preferences template with its five sections', () => {
     assert.ok(template, 'references/preferences-template.md exists');
-    for (const heading of ['## Stance', '## Criteria', '## Templates', '## Log']) {
+    for (const heading of ['## Stance', '## Scope', '## Criteria', '## Templates', '## Log']) {
       assert.match(template, new RegExp(`^${heading}$`, 'm'), `template has ${heading}`);
     }
     assert.match(template, /^\| Date \| Channel \| Person \| Company \| Role \| Fit \| Reply \| Follow up \|$/m);
+  });
+
+  it('has a template per reply type, including a clarifying question', () => {
+    for (const fit of ['Promising', 'Needs info', 'Poor fit']) {
+      assert.match(template, new RegExp(`^\\*\\*${fit}\\*\\*$`, 'm'), `template has a ${fit} reply`);
+    }
+    const needsInfo = template.split('**Needs info**')[1].split('**Poor fit**')[0];
+    assert.match(needsInfo, /\{question\}/, 'the Needs info reply asks {question}');
   });
 
   it('leaves every personal choice in the template for the user to fill in', () => {
@@ -84,13 +92,20 @@ describe('recruiter-replies', () => {
     assert.match(skillText, /exact text/);
     assert.match(skillText, /Yes, interested/, 'warns about one-tap InMail replies');
   });
+
+  it('carries the dry-run lessons: no double-counted InMail, stale threads, one row per company', () => {
+    assert.match(skillText, /-from:inmail-hit-reply@linkedin\.com/, 'Gmail search excludes LinkedIn\'s InMail copies');
+    assert.match(skillText, /stale cutoff/, 'old poor fits are proposed as no reply');
+    assert.match(skillText, /Group by company/, 'several recruiters for one company become one row');
+    assert.match(skillText, /expected sender/, 'reads a thread only once its header shows the right sender');
+  });
 });
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `node --test test/recruiter-replies.test.mjs`
-Expected: FAIL on all four tests (`references/preferences-template.md exists`, `SKILL.md exists`).
+Expected: FAIL on all six tests (`references/preferences-template.md exists`, `SKILL.md exists`).
 
 - [ ] **Step 3: Write the template**
 
@@ -101,8 +116,8 @@ Create `plugins/general/skills/recruiter-replies/references/preferences-template
 
 Preferences and reply log for the `recruiter-replies` skill. **Keep this file outside every git
 repository.** It holds your job-search stance and the people you've replied to. Replace each
-`<fill in: …>` with your own words. Leave `{name}`, `{role}` and `{company}` as they are; the agent
-fills those in for each reply.
+`<fill in: …>` with your own words. Leave `{name}`, `{role}`, `{company}` and `{question}` as they
+are; the agent fills those in for each reply.
 
 ## Stance
 
@@ -110,14 +125,21 @@ fills those in for each reply.
 
 Timing a promising reply offers: <fill in: for example "a few weeks", a month, or "happy to talk now">.
 
+## Scope
+
+- Channels: <fill in: LinkedIn, Gmail, or both>.
+- Email addresses and aliases recruiters write to: <fill in: every address to search>.
+- Lookback window: <fill in: how far back to look, for example 90 days>.
+- Stale cutoff: <fill in: a poor fit older than this gets no reply, for example 3 weeks>.
+
 ## Criteria
 
 | Fit | What counts |
 |---|---|
 | **Promising** | <fill in: levels, role types, locations and work arrangements you'd consider> |
-| **Poor fit** | <fill in: what you'd decline, such as remote-only, relocation, or levels you've moved past> |
-| **Unclear** | Level, role or location not stated. Ask me; don't guess. |
-| **Not a recruiter** | Sponsored messages, ads, people I know. Leave alone. |
+| **Needs info** | Nothing stated rules it out, but a deciding fact (level, location, work arrangement, or which role) is missing. Ask for it. |
+| **Poor fit** | <fill in: what you'd decline, such as remote-only, relocation, or levels you've moved past>. Also any message that names no role. |
+| **Not a recruiter** | Sponsored messages, ads, receipts, newsletters, people I know. Leave alone. |
 
 Rules for every reply:
 
@@ -138,6 +160,11 @@ changes.
 > Hi {name}, thanks for reaching out about the {role} role at {company}. <fill in: what you want to
 > happen next, in your own words>
 
+**Needs info**
+
+> Hi {name}, thanks for reaching out about {company}. {question} <fill in: anything you'd add, such
+> as the timing above>
+
 **Poor fit**
 
 > Hi {name}, <fill in: your short decline>
@@ -153,7 +180,7 @@ One row per reply sent. Promising threads read "when ready" under follow-up.
 - [ ] **Step 4: Run the test to verify the template tests pass**
 
 Run: `node --test test/recruiter-replies.test.mjs`
-Expected: the two template tests PASS; the two `SKILL.md` tests still FAIL (`SKILL.md exists`).
+Expected: the three template tests PASS; the three `SKILL.md` tests still FAIL (`SKILL.md exists`).
 
 - [ ] **Step 5: Commit**
 
@@ -223,8 +250,11 @@ skill's directory, replacing every `<fill in: …>`:
 3. Which locations and work arrangements are acceptable.
 4. What to do with poor fits: a short polite decline, a decline that states their criteria, or no
    reply.
-5. Which channels to cover: LinkedIn, Gmail, or both.
-6. Whether compensation, a start date, or their phone number or email address may ever be shared
+5. Which channels to cover (LinkedIn, Gmail, or both), and every email address or alias
+   recruiters write to.
+6. How far back to look (default 90 days), and the stale cutoff: how old a poor fit can be and
+   still get a reply (default 3 weeks).
+7. Whether compensation, a start date, or their phone number or email address may ever be shared
    (default: never).
 
 Show the filled-in file and ask where to save it. Suggest
@@ -233,34 +263,64 @@ Show the filled-in file and ask where to save it. Suggest
 
 ## 2. Collect
 
-- **LinkedIn:** `https://www.linkedin.com/messaging/`. Recruiter InMail usually lands in the
-  **Other** inbox (the Focused dropdown, then Other), not Focused. Check both, plus the InMail
-  filter. Read the conversation list first; its previews give the sender, subject and date without
-  opening anything. Opening a thread marks it read, which can't be avoided.
-- **Gmail:** search recent mail for outreach, for example
-  `newer_than:60d (recruiter OR "opportunity" OR "your background" OR "open to") -category:promotions`,
-  and read the matching threads.
-- **Skip** any thread already in the log, sponsored messages, ads, and people the user knows.
+Gather everything inside the lookback window from `## Scope`.
 
-## 3. Sort
+- **LinkedIn:** `https://www.linkedin.com/messaging/`. Recruiter InMail lands in the **Other**
+  inbox (the Focused dropdown, then Other), not Focused, so start there, then check Focused. Both
+  lists load as you scroll: keep scrolling until the oldest item is past the lookback window. The
+  list previews give sender, subject and date without opening anything.
+- **Gmail:** search every address in `## Scope`, for example
+  `newer_than:90d (recruiter OR opportunity OR "your background" OR hiring OR role) -category:promotions -category:social -from:inmail-hit-reply@linkedin.com -from:linkedin.com`.
+  LinkedIn emails a copy of every InMail from `inmail-hit-reply@linkedin.com`; including those
+  would count each LinkedIn thread twice.
+- **Skip** any thread already in the log and anything outside the window.
 
-Put each message in one of the preference file's four rows: **Promising**, **Poor fit**,
-**Unclear** or **Not a recruiter**. Base it only on what the message says. When the level, role
-or location isn't stated, it is Unclear: bring it to the user as a question, not a guess.
+## 3. Read each thread
 
-## 4. Draft
+Open threads one at a time. Wait until the thread header shows the **expected sender**, and only
+then capture the text. Threads load slowly, and reading them in a fast loop pairs one message's
+text with another sender. Opening a LinkedIn thread marks it read, which can't be avoided; count
+how many you opened for the report.
+
+## 4. Group by company
+
+Several recruiters often pitch the same company: colleagues at one agency, the same person by
+email and InMail, a follow-up in a new thread. Collapse them into **one row per company**. It gets
+one reply, on the channel its most recent named recruiter used, and the row lists the other
+threads that will go unanswered.
+
+## 5. Sort
+
+Put each company in one row of the file's `## Criteria`, using only what the messages say:
+
+- **Promising:** every stated criterion matches, and the deciding ones are stated.
+- **Needs info:** nothing stated rules it out, but a deciding fact (level, location, work
+  arrangement, or which role) is missing. Most outreach states the level or the location, rarely
+  both, so expect this to be common.
+- **Poor fit:** a stated fact rules it out, or the message names no role at all.
+- **Not a recruiter:** ads, sponsored messages, receipts, newsletters, people the user knows.
+
+## 6. Mark stale threads
+
+A Poor fit older than the **stale cutoff** in `## Scope`, or one whose recruiter already signed
+off ("I'll get out of your inbox", "maybe the timing isn't right"), is proposed as **no reply**.
+Promising and Needs info rows past the cutoff are flagged so the user decides.
+
+## 7. Draft
 
 Start from the matching template under `## Templates`. Fill `{name}`, `{role}` and `{company}`,
-and personalise the greeting with one real detail from the message. Follow the file's reply rules.
-Don't add claims, numbers, dates or contact details the rules don't allow.
+and personalise the greeting with one real detail from the message. A Needs info draft fills
+`{question}` with one question about the missing fact. Follow the file's reply rules. Don't add
+claims, numbers, dates or contact details the rules don't allow.
 
-## 5. Batch review
+## 8. Batch review
 
-Show one table with a row per message: person, company, role, channel, fit, the reason for the
-fit, and the draft. Then list the Unclear messages with their questions. The user approves,
-edits or skips each row. **Nothing is sent before this.**
+Show one table grouped by fit (Promising, Needs info, Poor fit), a row per company: company,
+recruiter(s), channel, date, role, the reason for the fit, the missing fact if any, and the draft
+or "no reply (stale)". The user approves, edits or skips each row. **Nothing is sent before
+this.**
 
-## 6. Send the approved rows
+## 9. Send the approved rows
 
 Send each approved reply as the **exact text** approved (an edited row sends the edited text),
 in the existing thread: LinkedIn's reply box in that conversation, or a Gmail reply in that
@@ -268,11 +328,11 @@ thread. After each send, read the thread back and confirm the message matches wo
 the typed text came out wrong (some message boxes drop characters), stop and fix it before
 sending the next one.
 
-## 7. Log and report
+## 10. Log and report
 
 Add a row per sent reply to the file's `## Log` table: date, channel, person, company, role, fit,
 which template, and follow-up ("when ready" for promising threads). Then report what was sent,
-what was skipped, the open questions, and anything suspicious.
+skipped and left as no reply (stale), how many threads you opened, and anything suspicious.
 
 ## Safety rules
 
@@ -338,7 +398,12 @@ Expected: an error (`not a git repository`). If it prints `true`, stop and ask t
 
 - [ ] **Step 2: Write the file from the approved draft**
 
-Copy the approved draft to `~/Documents/Resume/recruiters.md`, making two changes so it matches the template's structure: add the "Rules for every reply" lines for compensation, start date and contact details (all "never"), and delete the example row from the log so the table is only its header and divider.
+Copy the approved draft to `~/Documents/Resume/recruiters.md`, bringing it in line with the template's structure:
+
+- add a `## Scope` section with the channels, every address recruiters write to (including aliases found in the dry run), the lookback window and the stale cutoff the user chose;
+- rename the `Unclear` criteria row to `Needs info`, and add a **Needs info** reply using the wording the user approves in the first batch review;
+- add the "Rules for every reply" lines for compensation, start date and contact details (all "never");
+- delete the example row from the log, so the table is only its header and divider.
 
 - [ ] **Step 3: Verify it has no placeholders and an empty log**
 
