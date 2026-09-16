@@ -35,7 +35,9 @@ import urllib.request
 import xml.etree.ElementTree as ET  # parses only the site's own sitemap.xml
 from pathlib import Path
 
-SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
+READ_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
+# Only `sitemap --resubmit` asks for this one: everything else stays read-only.
+WRITE_SCOPE = "https://www.googleapis.com/auth/webmasters"
 WEBMASTERS = "https://www.googleapis.com/webmasters/v3"
 SEARCHCONSOLE = "https://searchconsole.googleapis.com/v1"
 DEFAULT_SITEMAP = "public/sitemap.xml"
@@ -186,7 +188,8 @@ def classify_api_error(status, body):
     """Turn an API error into the specific thing to fix."""
     text = body if isinstance(body, str) else str(body)
     if status == 403 and "ACCESS_TOKEN_SCOPE_INSUFFICIENT" in text:
-        return (f"403: the credential is missing the {SCOPE} scope. "
+        return ("403: the credential is missing the scope this call needs "
+                f"({READ_SCOPE} to read, {WRITE_SCOPE} to resubmit a sitemap). "
                 "The script requests it, so a stale cached token or a hand-made key is the usual cause.")
     if status == 403 and "sufficient permission for site" in text:
         return ("403: Search Console does not know this service account. Add its email in "
@@ -233,8 +236,8 @@ def urllib_transport(url, method="GET", body=None, headers=None, timeout=60, **_
             return UrllibResponse(exc.code, dict(exc.headers or {}), exc.read())
 
 
-def access_token(path):
-    """Mint a read-only bearer token from the service account key."""
+def access_token(path, scope=READ_SCOPE):
+    """Mint a bearer token from the service account key. Read-only unless asked otherwise."""
     if not path.is_file():
         raise Failure(missing_key_message(path))
     try:
@@ -242,16 +245,16 @@ def access_token(path):
     except ImportError:
         raise Failure("google-auth is not installed: python3 -m pip install --user google-auth") from None
     try:
-        creds = service_account.Credentials.from_service_account_file(str(path), scopes=[SCOPE])
+        creds = service_account.Credentials.from_service_account_file(str(path), scopes=[scope])
         creds.refresh(urllib_transport)
     except Exception as exc:  # a bad key, a clock skew, no network
         raise Failure(f"could not authenticate with {path}: {exc}")
     return creds.token  # never printed
 
 
-def call(token, url, payload=None):
+def call(token, url, payload=None, method=None):
     data = json.dumps(payload).encode() if payload is not None else None
-    req = urllib.request.Request(url, data=data, method="POST" if data else "GET")
+    req = urllib.request.Request(url, data=data, method=method or ("POST" if data else "GET"))
     req.add_header("Authorization", f"Bearer {token}")
     if data:
         req.add_header("Content-Type", "application/json")
@@ -407,6 +410,13 @@ def cmd_index(opts, token):
 def cmd_sitemap(opts, token):
     feed = opts["feed_url"]
     url = f"{WEBMASTERS}/sites/{encode_property(opts['property'])}/sitemaps/{urllib.parse.quote(feed, safe='')}"
+    if opts.get("resubmit"):
+        # Google's own advice for many URLs at once: resubmitting asks it to refetch the file,
+        # which is the closest thing to "look at these pages" that an API offers. The per-URL
+        # Request indexing button has no API at all.
+        call(token, url, method="PUT")
+        ok(f"resubmitted {feed}; Google refetches on its own schedule, usually within a day or two")
+        print()
     result = call(token, url)
     if opts["json"]:
         print(json.dumps(result, indent=2))
@@ -487,9 +497,11 @@ def cmd_perf(opts, token):
 
 
 def parse_args(argv):
-    opts = {"json": False, "days": 28, "property": None, "sitemap": None, "project": None, "key": None}
+    opts = {"json": False, "days": 28, "property": None, "sitemap": None, "project": None,
+            "key": None, "resubmit": False}
     if not argv or argv[0].startswith("-"):
-        raise Failure("usage: gsc.py index|sitemap|perf [--property P] [--sitemap S] [--days N] [--json]")
+        raise Failure("usage: gsc.py index|sitemap|perf [--property P] [--sitemap S] "
+                      "[--days N] [--resubmit] [--json]")
     command = argv[0]
     if command not in ("index", "sitemap", "perf"):
         raise Failure(f"unknown command {command!r}: expected index, sitemap or perf")
@@ -498,6 +510,10 @@ def parse_args(argv):
         flag = rest.pop(0)
         if flag == "--json":
             opts["json"] = True
+        elif flag == "--resubmit":
+            if command != "sitemap":
+                raise Failure("--resubmit belongs to the sitemap command")
+            opts["resubmit"] = True
         elif flag in ("--days", "--property", "--sitemap", "--project", "--key"):
             if not rest:
                 raise Failure(f"{flag} needs a value")
@@ -536,7 +552,8 @@ def run(argv, env, cwd):
     if not opts["json"]:
         print(f"Property {prop} ({how}); sitemap {source}")
         print()
-    token = access_token(key_path(opts["key"], env.get("GSC_SA_KEY"), project))
+    scope = WRITE_SCOPE if opts.get("resubmit") else READ_SCOPE
+    token = access_token(key_path(opts["key"], env.get("GSC_SA_KEY"), project), scope)
     return {"index": cmd_index, "sitemap": cmd_sitemap, "perf": cmd_perf}[command](opts, token)
 
 

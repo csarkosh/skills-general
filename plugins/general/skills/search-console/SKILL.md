@@ -5,7 +5,7 @@ description: Use when the user asks about Google, search, ranking, indexing, "is
 
 # Google Search Console, from the command line
 
-Read-only, one script. It is site-agnostic: the property, the sitemap and the key
+Read-only by default, one script. It is site-agnostic: the property, the sitemap and the key
 path all come from flags or the environment, so the same skill works in any
 static-site repository. The script is `scripts/gsc.py` in this skill's directory,
 the folder that holds this `SKILL.md`. Run it from the repository that holds the
@@ -16,6 +16,7 @@ S=<this skill's directory>/scripts
 $S/gsc.py index                 # inspect every <loc> in the sitemap: verdict, coverage, last crawl, canonical
 $S/gsc.py sitemap               # has Google fetched the sitemap, with error, warning and indexed counts
 $S/gsc.py perf --days 28        # clicks, impressions, CTR, average position, by page and by query
+$S/gsc.py sitemap --resubmit    # ask Google to refetch the sitemap (the only call that writes)
 ```
 
 Add `--json` to any of them to get the raw API responses instead of the tables,
@@ -24,7 +25,7 @@ which is the better form when an agent needs to reason over the numbers.
 | Command | Answers |
 |---|---|
 | `index` | Did Google index the pages I published? Is anything blocked, unfetchable or canonicalized somewhere else? Which URLs still need a manual click? |
-| `sitemap` | Did Google ever download the sitemap, and does it report errors? |
+| `sitemap` | Did Google ever download the sitemap, and does it report errors? With `--resubmit`, ask it to fetch the file again. |
 | `perf` | What do people search before they land here, which pages get impressions, where do they rank? |
 
 Unit tests, from this skill's directory:
@@ -89,9 +90,18 @@ specific fix rather than a traceback: a 403 `ACCESS_TOKEN_SCOPE_INSUFFICIENT`
 means the scope, a 403 "User does not have sufficient permission for site" means
 the service account was never added or was added as Restricted.
 
-The scope is read-only, `https://www.googleapis.com/auth/webmasters.readonly`.
-Submitting or deleting a sitemap would need the read-write scope, which this
-skill deliberately does not request.
+The scope is read-only, `https://www.googleapis.com/auth/webmasters.readonly`,
+for every command except `sitemap --resubmit`, which asks for
+`https://www.googleapis.com/auth/webmasters` for that one call. Nothing else
+writes, and there is no delete: removing a sitemap stays a deliberate click in
+the UI.
+
+**When to resubmit.** Google refetches a sitemap on its own schedule, so a
+resubmit is worth one call after publishing several pages at once, when the copy
+Google holds is older than the pages you care about (`sitemap` prints
+`last downloaded` and the submitted count). It is Google's own advice for many
+URLs at once, and unlike the per-URL button it is reachable from an API. Doing it
+repeatedly achieves nothing.
 
 ## What stays manual, and why
 

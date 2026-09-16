@@ -329,5 +329,49 @@ class UrllibTransport(unittest.TestCase):
         self.assertIn(b"invalid_grant", resp.data)
 
 
+class Resubmit(unittest.TestCase):
+    """--resubmit is the one write, so it is gated and it asks for a different scope."""
+
+    def test_only_the_sitemap_command_takes_it(self):
+        _, opts = gsc.parse_args(["sitemap", "--resubmit"])
+        self.assertTrue(opts["resubmit"])
+        for argv in (["index", "--resubmit"], ["perf", "--resubmit"]):
+            with self.assertRaises(gsc.Failure, msg=str(argv)):
+                gsc.parse_args(argv)
+
+    def test_default_is_read_only(self):
+        _, opts = gsc.parse_args(["sitemap"])
+        self.assertFalse(opts["resubmit"])
+
+    def test_scopes_differ(self):
+        self.assertTrue(gsc.READ_SCOPE.endswith("webmasters.readonly"))
+        self.assertTrue(gsc.WRITE_SCOPE.endswith("/webmasters"))
+
+    def test_put_is_sent_for_a_resubmit(self):
+        seen = {}
+
+        class FakeResponse:
+            def read(self):
+                return b"{}"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def fake_urlopen(req, timeout=None):
+            seen["method"] = req.get_method()
+            return FakeResponse()
+
+        original = gsc.urllib.request.urlopen
+        gsc.urllib.request.urlopen = fake_urlopen
+        try:
+            gsc.call("token", "https://example.test/sitemaps/x", method="PUT")
+        finally:
+            gsc.urllib.request.urlopen = original
+        self.assertEqual(seen["method"], "PUT")
+
+
 if __name__ == "__main__":
     unittest.main()
