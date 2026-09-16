@@ -26,7 +26,7 @@ public, so everything in it is public too.
 |---|---|---|
 | `general` | `doc-preview` | Renders a markdown doc to a self-contained page in csarko.sh's theme and opens it in Chrome. |
 | `general` | `search-console` | Reports Google Search Console status for a static site: indexing, sitemap fetch, search performance. Needs `google-auth`. |
-| `general` | `linkedin-profile` | Audits a LinkedIn profile against a source of truth and edits it in the user's signed-in browser without notifying their network. Needs browser tools. |
+| `general` | `linkedin` | Does LinkedIn work quietly in the user's signed-in browser: profile audit and edits, messages, invitations and notifications. Shared safety rules in `SKILL.md`, one reference file per task. Needs browser tools. |
 | `general` | `recruiter-replies` | Finds recruiter messages on LinkedIn and in Gmail, drafts replies from the user's private preferences file, and sends only the replies the user approves. Needs browser and Gmail tools. |
 | `general-claude` | `doc-artifact` | Publishes a markdown doc as a claude.ai Artifact in a Nord house style. |
 

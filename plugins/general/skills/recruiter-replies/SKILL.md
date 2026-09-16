@@ -55,10 +55,9 @@ Show the filled-in file and ask where to save it. Suggest
 
 Gather everything inside the lookback window from `## Scope`.
 
-- **LinkedIn:** `https://www.linkedin.com/messaging/`. Recruiter InMail lands in the **Other**
-  inbox (the Focused dropdown, then Other), not Focused, so start there, then check Focused. Both
-  lists load as you scroll: keep scrolling until the oldest item is past the lookback window. The
-  list previews give sender, subject and date without opening anything.
+- **LinkedIn:** follow "Where messages are" in the `linkedin` skill's
+  `../linkedin/references/messages.md` (in this plugin). Recruiter InMail lands in the **Other**
+  inbox; keep scrolling until the oldest item is past the lookback window.
 - **Gmail:** search every address in `## Scope`, for example
   `newer_than:90d (recruiter OR opportunity OR "your background" OR hiring OR role) -category:promotions -category:social -from:inmail-hit-reply@linkedin.com -from:linkedin.com`.
   LinkedIn emails a copy of every InMail from `inmail-hit-reply@linkedin.com`; including those
@@ -67,10 +66,9 @@ Gather everything inside the lookback window from `## Scope`.
 
 ## 3. Read each thread
 
-Open threads one at a time. Wait until the thread header shows the **expected sender**, and only
-then capture the text. Threads load slowly, and reading them in a fast loop pairs one message's
-text with another sender. Opening a LinkedIn thread marks it read, which can't be avoided; count
-how many you opened for the report.
+Follow "Reading a thread" in `../linkedin/references/messages.md`: one thread at a time, and only
+once its header shows the **expected sender**. Count how many LinkedIn threads you opened for the
+report; opening one marks it read. Gmail threads are read the same way, one at a time.
 
 ## 4. Group by company
 
@@ -126,19 +124,10 @@ Send each approved reply as the **exact text** approved (an edited row sends the
 the existing thread: LinkedIn's reply box in that conversation, or a Gmail reply to the thread's
 latest message.
 
-On LinkedIn, for every reply:
-
-1. Confirm the thread header shows the expected sender.
-2. Put the text in the compose box and read the box back. It must match the approved text word
-   for word; some message boxes drop typed characters, so fix it before going on.
-3. Press the compose form's own **Send** button: the submit button labelled Send inside the form
-   that holds the compose box. Its markup varies between threads, so don't rely on one class or a
-   screen position, and never press the one-tap replies above it.
-4. **Check for a "Share your contact info?" dialog.** Some InMail senders trigger it after Send.
-   It is pre-filled with the user's email and phone number, "Yes, please share" is the highlighted
-   button, and the reply isn't delivered until the dialog is answered. Click **"No, don't share"**
-   unless the preferences allow sharing contact details.
-5. Read the thread back and confirm the last message matches the approved text.
+On LinkedIn, follow "Replying in a thread" in `../linkedin/references/messages.md` for every reply:
+confirm the sender, read the compose box back against the approved text, press the form's own
+Send, answer any **"Share your contact info?"** dialog with **"No, don't share"** unless the
+preferences allow sharing, and read the thread back.
 
 For Gmail, read the sent message back and confirm the recipient and the text.
 
