@@ -74,6 +74,19 @@ default and the headline swap in "Add a role", "Follow this skill", contributors
 needing a preview, the Premium-only Intro website), splitting one employer into several roles,
 and the finish checklist.
 
+It also covers **seeing the profile as others do**, so the user can check it from a recruiter's
+perspective:
+
+- Give the user their own profile link. Read it from the profile's "Public profile & URL" panel or
+  contact info (`https://www.linkedin.com/in/<id>/`); `https://www.linkedin.com/in/me/` redirects to
+  it while signed in.
+- For the signed-out, public view, the user opens that link in a private or incognito window (the
+  agent never signs the user out). `https://www.linkedin.com/public-profile/settings` shows the same
+  public view as a preview, next to the settings that control it.
+- A recruiter signed in to LinkedIn sees roughly what any member outside the user's network sees,
+  plus signals only recruiters get, such as "Open to work" set to recruiters only. LinkedIn has no
+  page that shows exactly that view, so say so rather than pretending the public view is it.
+
 ## references/messages.md
 
 - Recruiter InMail lands in the **Other** inbox, not Focused; both lists load as you scroll.
@@ -139,7 +152,7 @@ highlighted (a dot and a tinted background) until each is opened, even after a r
   - `notifications.md` says opening the page clears the badge, skips items that open a profile,
     and forbids acting on notifications;
   - `profile.md` keeps "Share with your network", the headline swap, "Follow this skill" and
-    contributors;
+    contributors, and explains the profile link and the public view (`public-profile/settings`);
   - no file outside `docs/` mentions `linkedin-profile`.
 - `test/recruiter-replies.test.mjs` also checks the pointer to `linkedin/references/messages.md`
   and that its own safety table still names the contact-info dialog.
