@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-16-recruiter-replies-design.md`
 
+**Status:** implemented 2026-09-16. Findings from the first live sends (LinkedIn's contact-info dialog, a Send button with different markup, "profile changed on", and a Not interested outcome) were folded into the spec afterwards and built directly, so the committed `SKILL.md`, template and test are the source of truth where they differ from the code blocks below.
+
 ## Global Constraints
 
 - Repository: `~/Projects/skills-general`, branch `recruiter-replies` (already created; the spec is committed on it).
@@ -19,7 +21,7 @@
 - Every backticked `scripts/…`, `assets/…` or `references/…` path in `SKILL.md` must exist.
 - Bump `general` from `0.4.0` to `0.5.0` in both `plugins/general/.claude-plugin/plugin.json` and `plugins/general/.codex-plugin/plugin.json`.
 - Preferences resolution order: a path named in the request, then `$RECRUITER_PREFS`, then `~/.config/recruiter-replies/preferences.md`.
-- The user's private file is `~/Documents/Resume/recruiters.md`, never inside a git repository.
+- The user's private preferences file lives wherever the user chooses, never inside a git repository.
 
 ---
 
@@ -385,7 +387,7 @@ git commit -m "Add a recruiter-replies skill to the general plugin"
 ### Task 3: The user's private preferences file
 
 **Files:**
-- Create: `~/Documents/Resume/recruiters.md` (outside every repository; never committed)
+- Create: the user's private preferences file, at a path they choose outside every repository (never committed)
 
 **Interfaces:**
 - Consumes: the template structure from Task 1, and the draft approved in conversation at `<scratchpad>/draft/recruiters.md`.
@@ -393,12 +395,12 @@ git commit -m "Add a recruiter-replies skill to the general plugin"
 
 - [ ] **Step 1: Confirm the folder is not a git repository**
 
-Run: `git -C ~/Documents/Resume rev-parse --is-inside-work-tree`
+Run: `git -C <the chosen folder> rev-parse --is-inside-work-tree`
 Expected: an error (`not a git repository`). If it prints `true`, stop and ask the user where to save the file.
 
 - [ ] **Step 2: Write the file from the approved draft**
 
-Copy the approved draft to `~/Documents/Resume/recruiters.md`, bringing it in line with the template's structure:
+Copy the approved draft to the chosen path, bringing it in line with the template's structure:
 
 - add a `## Scope` section with the channels, every address recruiters write to (including aliases found in the dry run), the lookback window and the stale cutoff the user chose;
 - rename the `Unclear` criteria row to `Needs info`, and add a **Needs info** reply using the wording the user approves in the first batch review;
@@ -407,8 +409,8 @@ Copy the approved draft to `~/Documents/Resume/recruiters.md`, bringing it in li
 
 - [ ] **Step 3: Verify it has no placeholders and an empty log**
 
-Run: `grep -c '<fill in' ~/Documents/Resume/recruiters.md; grep -A3 '^## Log' ~/Documents/Resume/recruiters.md | tail -2`
-Expected: `0`, then the header and divider rows only.
+Run: `grep -c '<fill in' <file>; grep -A3 '^## Log' <file> | tail -2`
+Expected: `0`, then the log rows (the header and divider, plus any replies already sent).
 
 ---
 
@@ -418,8 +420,8 @@ Expected: `0`, then the header and divider rows only.
 
 - [ ] **Step 1: Check nothing private is staged in the branch**
 
-Run: `git diff main --stat && git diff main -- . ':!docs' | grep -n -i -E 'nyc|new york|resume/recruiters|staff ic' || echo clean`
-Expected: the stat lists only the spec, plan, test, skill files, both manifests, `AGENTS.md` and `README.md`; the grep prints `clean`.
+Run: `git diff main --stat && git diff main | grep -n -i -E '<the user\'s own city, target titles and private file path, supplied at run time>' || echo clean`
+Expected: the stat lists only the spec, plan, test, skill files, both manifests, `AGENTS.md` and `README.md`; the grep prints `clean`. Never write the user's own terms into this plan.
 
 - [ ] **Step 2: Push and open the PR**
 
