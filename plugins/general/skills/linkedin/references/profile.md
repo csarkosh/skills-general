@@ -17,22 +17,6 @@ before every save.
 3. **Report the gaps** as a table (LinkedIn today against the source), then recommendations in
    order of impact, with exact copy the user can paste.
 
-## See the profile as others do
-
-When the user wants to check their profile from a recruiter's perspective, or just wants the link:
-
-1. **Give them their own profile link.** Read it from the profile page's "Public profile & URL"
-   panel or from contact info: `https://www.linkedin.com/in/<id>/`. While signed in,
-   `https://www.linkedin.com/in/me/` redirects to it.
-2. **The public, signed-out view:** the user opens that link in a private or incognito window,
-   where they aren't signed in. Never sign the user out to show it. For a preview without a second
-   window, `https://www.linkedin.com/public-profile/settings` shows the public view next to the
-   settings that control what's in it.
-3. **Be clear about the recruiter view.** A recruiter signed in to LinkedIn sees roughly what any
-   member outside the user's network sees, plus signals only recruiters get, such as "Open to work"
-   set to recruiters only. LinkedIn has no page that shows exactly that view, so say the public view
-   is the closest check, not an exact copy.
-
 ## 2. Make it quiet, and check again before every session
 
 - **Account-wide:** Settings, Visibility, "Share profile updates" must read **Off**
@@ -62,7 +46,7 @@ each save, screenshot the whole form and check every switch below.
 | **Featured** menu | "Add a post" and "Add an article" publish | Use only **Add a link** (or image or document) |
 | **Featured** "Add a link" | Won't save without a link preview, and the preview service sometimes fails for every URL | Try twice at most, then leave it for later |
 | **Edit intro** | No free website field; the custom button is Premium | Put websites in Contact info |
-| **Delete** anything | "This action cannot be undone" | Read the item name in the dialog before confirming |
+| **Delete** anything | "This action cannot be undone", so it needs its own explicit yes | Get that explicit yes, then read the item name in the dialog before confirming |
 | **Unfollow** a page | Confirmation dialog | Silent; the page isn't notified |
 
 ## Splitting one employer into several roles without a "new job" announcement
@@ -87,6 +71,24 @@ it from the company typeahead).
   Leave phone, address and birthday empty unless the user asks.
 - In the Add skill form, the first click on "Add skill" after the page loads sometimes only focuses
   the form; check the input opened before typing.
+
+## See the profile as others do
+
+When the user wants to check their profile from a recruiter's perspective, or just wants the link:
+
+1. **Give them their own profile link.** Read it from the profile page's "Public profile & URL"
+   panel or from contact info: `https://www.linkedin.com/in/<id>/`. While signed in,
+   `https://www.linkedin.com/in/me/` redirects to it.
+2. **The public, signed-out view:** the user opens that link in a private or incognito window,
+   where they aren't signed in. Never sign the user out to show it. For a preview without a second
+   window, `https://www.linkedin.com/public-profile/settings` shows the public view next to the
+   settings that control what's in it.
+3. **Be clear about the recruiter view.** A recruiter signed in to LinkedIn sees roughly what any
+   member outside the user's network sees, plus signals only recruiters get, such as "Open to work"
+   set to recruiters only. LinkedIn has no page that shows exactly that view, so say the public view
+   is the closest check, not an exact copy. The signed-out public view can also show **less** than a
+   signed-in recruiter sees: public-visibility settings hide some sections only from signed-out
+   viewers.
 
 ## Finish
 

@@ -38,11 +38,13 @@ Answering recruiter outreach across LinkedIn and email is the `recruiter-replies
   | Never press | What it does |
   |---|---|
   | InMail's "Yes, interested" / "No thanks" | Sends a canned reply |
-  | Buttons inside sponsored messages or notifications ("Retry Premium", "Add to your network") | Signs up or connects |
+  | Buttons inside sponsored messages or notifications ("Retry Premium", "Add to your network") | Signs up, connects, follows, or messages |
   | "Connect" on any suggestion | Sends a connection request |
   | "Create a post", "Start a post", "Add a post" | Publishes |
   | "Reply to {name}" under an invitation note | Starts a conversation |
   | "Say hello" or "Send a message" after accepting an invitation | Sends a message |
+  | "Ask for a recommendation" / "Request a recommendation" | Sends a message |
+  | "Say congrats" or "Message" on a job-change, anniversary or birthday notification | Sends canned text |
 
 - **Decline the contact-info dialog.** After some actions LinkedIn shows "Share your contact info?",
   pre-filled with the user's email and phone number, with "Yes, please share" highlighted. The
@@ -71,14 +73,19 @@ Answering recruiter outreach across LinkedIn and email is the `recruiter-replies
   el.dispatchEvent(new Event('input', { bubbles: true }));
   ```
 
+  For a single-line `<input>`, use `HTMLInputElement.prototype` in place of
+  `HTMLTextAreaElement.prototype`: calling the textarea's setter on an input throws "Illegal
+  invocation". After setting the value, confirm a character counter under the field changed, which
+  shows the form registered the value.
+
   For a rich-text box (such as the message composer), focus it and use
   `document.execCommand('insertText', false, text)`, then read its `innerText` back.
 - **Typeaheads** (location, company, skill) save only an entry picked from the dropdown, under
   LinkedIn's own name for it.
 - **Positions shift** after every change. Find buttons again each time instead of reusing
   coordinates, and prefer finding a button by its label inside the right container.
-- **URLs** here were current in September 2026. If one 404s, go through the profile page's buttons
-  and menus instead.
+- **URLs** here were current in September 2026. If one 404s, navigate through the site's own menus
+  and buttons instead.
 
 ## Finish
 
