@@ -64,4 +64,11 @@ describe('recruiter-replies', () => {
     assert.match(skillText, /expected sender/, 'reads a thread only once its header shows the right sender');
     assert.match(skillText, /Not interested/, 'a fitting role the user does not want gets a decline');
   });
+
+  it('takes its LinkedIn mechanics from the linkedin skill, and keeps its own safety table', () => {
+    assert.match(skillText, /`\.\.\/linkedin\/references\/messages\.md`/, 'links the shared messages reference');
+    assert.ok(existsSync(join(SKILL, '../linkedin/references/messages.md')), 'the linked file exists');
+    const safety = skillText.split('## Safety rules')[1] ?? '';
+    assert.match(safety, /Share your contact info\?/, 'its own safety table still names the contact-info dialog');
+  });
 });
