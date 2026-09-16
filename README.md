@@ -7,7 +7,7 @@ Agent skills I share across my repositories, packaged as one plugin marketplace 
 
 | Plugin | For | Skills |
 | --- | --- | --- |
-| `general` | Claude Code and Codex | `doc-preview`: open a markdown doc as a styled page in Chrome<br>`search-console`: report a static site's Google indexing, sitemap and search performance<br>`linkedin-profile`: bring a LinkedIn profile in line with your site or résumé, quietly, in your signed-in browser |
+| `general` | Claude Code and Codex | `doc-preview`: open a markdown doc as a styled page in Chrome<br>`search-console`: report a static site's Google indexing, sitemap and search performance<br>`linkedin-profile`: bring a LinkedIn profile in line with your site or résumé, quietly, in your signed-in browser<br>`recruiter-replies`: answer recruiter messages from your own preferences, sending only what you approve |
 | `general-claude` | Claude Code only | `doc-artifact`: publish a markdown doc as a claude.ai Artifact |
 
 Each skill is a folder with a `SKILL.md` in the open [Agent Skills](https://agentskills.io)
