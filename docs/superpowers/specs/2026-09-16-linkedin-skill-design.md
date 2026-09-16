@@ -93,7 +93,9 @@ perspective:
 - LinkedIn emails a copy of each InMail from `inmail-hit-reply@linkedin.com`, so email searches
   should exclude it.
 - Read one thread at a time once its header shows the expected sender; opening a thread marks it
-  read.
+  read. If the user's "Read receipts and typing indicators" setting is on, the sender can see it
+  was read, so tell the user before opening threads in bulk. LinkedIn's "Mark as unread" restores
+  the unread state for the user but does not take back a read receipt already sent.
 - Replying: confirm the header, put the text in the compose box and read it back, press the
   submit button labelled Send inside the compose form (its markup varies), check for the contact
   info dialog, read the thread back.
@@ -111,8 +113,11 @@ perspective:
      requests for money or off-platform contact.
    - **Ask:** everything else, including recruiters. If the user keeps a recruiter-replies log,
      say when an inviter is a recruiter already answered there.
-3. **Batch review:** one table (name, headline, note excerpt, suggestion, reason). The user
-   approves, flips or skips each row.
+3. **Batch review:** before the user approves anything, tell them Accept notifies the sender, adds
+   them to the network, lets them see the user's activity, and shows them whatever contact info the
+   user makes visible to connections (such as email, depending on the "Who can see or download your
+   email address" setting, covered in `profile.md`). Then one table (name, headline, note excerpt,
+   suggestion, reason). The user approves, flips or skips each row.
 4. **Act on approved rows only**, one card at a time: confirm the card shows the expected name,
    click only that card's own Accept or Ignore, dismiss any "Say hello" or message prompt without
    sending, never press Connect on suggestions, then confirm the card is gone.
@@ -125,13 +130,19 @@ preferences", "Delete notification" and "Show less like this". Opening
 `https://www.linkedin.com/notifications/` clears the badge count, but unread items stay
 highlighted (a dot and a tinted background) until each is opened, even after a reload.
 
+If the user asks only for a summary, collect and summarize without opening any item, then ask
+whether to mark the non-person items read.
+
 1. **Tell the user** that opening the page clears the badge.
 2. **Collect** the highlighted items, scrolling until none are left below. Capture the type, who,
    what, and age.
 3. **Mark non-person items read** by opening each one (posts, comments, news, jobs, product
    notices) on its text, never on an inline button, then going back and confirming it is no longer
-   highlighted. **Skip items that open a person's profile** ("You may know…", "viewed your
-   profile", follows and connection suggestions): the person would see the view.
+   highlighted. A notification's person name and avatar usually link to that person's profile, so
+   check the link's destination before clicking and never follow a link to `/in/…`; open the item
+   through its main link (the post, job or article), not the name or avatar. **Skip items that open
+   a person's profile** ("You may know…", "viewed your profile", follows and connection
+   suggestions): the person would see the view.
 4. **Summarize**, grouped as **Needs you** (mentions, comments or replies on the user's content,
    messages, invitations), **FYI** (profile views, job alerts, network updates) and **Noise**
    (trending, suggested posts, promotions). List Needs you items one by one; count the rest. List

@@ -5,6 +5,9 @@ notification preferences", "Delete notification" and "Show less like this". Open
 `https://www.linkedin.com/notifications/` **clears the badge** count, but unread items stay
 highlighted (a dot and a tinted background) until each one is opened, even after a reload.
 
+If the user asks only for a summary, collect and summarize without opening any item, then ask
+whether to mark the non-person items read.
+
 ## 1. Say what opening the page does
 
 Tell the user that opening the notifications page clears the badge count, then open it.
@@ -17,8 +20,11 @@ what, and age. The filters at the top (All, Jobs, My posts, Mentions) only narro
 ## 3. Mark non-person items read
 
 Open each highlighted item that is **not about a person**: posts, comments on posts, news, jobs,
-product notices. Click on its text, **never on an inline button** ("Retry Premium", "Add to your
-network", "Connect", "Follow"). Go back, and confirm the item is no longer highlighted.
+product notices. A notification's person name and avatar usually link to that person's profile, so
+before clicking, check the link's destination and never follow a link to `/in/…`. Open the item
+through its main link (the post, job or article), not the name or avatar, and never on an inline
+button ("Retry Premium", "Add to your network", "Connect", "Follow"). Go back, and confirm the item
+is no longer highlighted.
 
 **Skip items that open a person's profile**: "You may know…", "{name} viewed your profile",
 follows, and connection suggestions. Opening them tells that person the user viewed their profile.
@@ -41,4 +47,4 @@ Open a person's profile only when the user names that person and asks. Report wh
 ## Never
 
 **Never react**, comment, follow, connect, delete a notification, or change notification settings
-from this page. Invitations are handled with `invitations.md`.
+from this page. Invitations are handled with `references/invitations.md`.
