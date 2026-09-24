@@ -1,6 +1,6 @@
 ---
 name: linkedin
-description: Use when the user wants something done on LinkedIn in their own signed-in browser, such as reviewing or editing their profile (headline, About, experience, skills, projects, contact info), getting their profile link to see it as a recruiter would, reading or replying to messages and InMail, reviewing connection invitations to accept or ignore, or going through notifications and marking them read. Keeps every action approved and quiet, with no announcements to their network, no one-tap replies, and no profile views they did not ask for.
+description: Use when the user wants something done on LinkedIn in their own signed-in browser, such as reviewing or editing their profile (headline, About, experience, skills, projects, contact info), getting their profile link to see it as a recruiter would, reading or replying to messages and InMail, reviewing connection invitations to accept or ignore, going through notifications and marking them read, or cutting unwanted contact and emails through their settings (who can message them, notification emails, Open to Work visibility). Keeps every action approved and quiet, with no announcements to their network, no one-tap replies, and no profile views they did not ask for.
 ---
 
 # LinkedIn, quietly
@@ -22,6 +22,7 @@ Read the task's file before acting. The rules below apply to every one of them.
 | Read messages or InMail, or reply in a thread | `references/messages.md` |
 | Review connection invitations and accept or ignore them | `references/invitations.md` |
 | Go through notifications and mark them read | `references/notifications.md` |
+| Stop unwanted contact or emails: who can message them, which emails LinkedIn sends, Open to Work visibility | `references/settings.md` |
 
 Answering recruiter outreach across LinkedIn and email is the `recruiter-replies` skill, which uses
 `references/messages.md` for its LinkedIn steps.
@@ -82,6 +83,8 @@ Answering recruiter outreach across LinkedIn and email is the `recruiter-replies
   `document.execCommand('insertText', false, text)`, then read its `innerText` back.
 - **Typeaheads** (location, company, skill) save only an entry picked from the dropdown, under
   LinkedIn's own name for it.
+- **First clicks.** On settings pages and edit pencils, the first click after a page loads often
+  only focuses the element. Check the URL changed or the dialog opened, and click again if not.
 - **Positions shift** after every change. Find buttons again each time instead of reusing
   coordinates, and prefer finding a button by its label inside the right container.
 - **URLs** here were current in September 2026. If one 404s, navigate through the site's own menus

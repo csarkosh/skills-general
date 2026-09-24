@@ -24,8 +24,10 @@ before every save.
   ask the user to turn it off. Check it again when you finish.
 - **Email:** suggest "Who can see or download your email address" be set to the most private
   option. That is the user's setting to change.
-- **Open to work** stays on **Recruiters only** unless the user asks otherwise. "All LinkedIn
-  members" adds the green #OpenToWork photo frame.
+- **Open to work:** ask whether the user still wants to signal recruiters; don't keep it on by
+  default. Never set "All LinkedIn members" unless asked: it adds the green #OpenToWork photo
+  frame. To turn it off without deleting the saved preferences, follow
+  `references/settings.md`.
 
 ## 3. Show each form's contents, then save one form at a time
 
@@ -38,14 +40,18 @@ each save, screenshot the whole form and check every switch below.
 | Form | Trap | Do this |
 |---|---|---|
 | **Edit an existing position** | "Notify network" switch at the top | Must read **Off** |
-| **Add a role** | "Share with your network" at the bottom is **On by default**, even with the account setting off | Turn it **Off** |
+| **Add a role** | A sharing switch, "Share with your network" at the bottom or "Notify network" at the top depending on the form version, can be **On by default** even with the account setting off | Make sure it reads **Off** |
 | **Add a role** | "Update your profile headline" defaults to **replacing the headline** with the new title | Select the option marked **(current)** |
+| **Add a role** | "I currently work here" is **checked by default** | Uncheck it for a past role, then set the end date |
+| **Add a role** | A renamed company appears in the typeahead under its new name only | Pick the entry with the same logo as the existing position, so the roles group under one heading |
 | After saving a position | "Verify you work at…" email prompt; "Connect with people you may know" | **Skip** both |
 | **Add skill** | "Follow this skill" is **checked by default** | Uncheck it |
 | **Add project** | Contributors | Never add one; LinkedIn tells the people you tag |
 | **Featured** menu | "Add a post" and "Add an article" publish | Use only **Add a link** (or image or document) |
 | **Featured** "Add a link" | Won't save without a link preview, and the preview service sometimes fails for every URL | Try twice at most, then leave it for later |
 | **Edit intro** | No free website field; the custom button is Premium | Put websites in Contact info |
+| After saving the intro or About | A Premium upsell dialog, or "tell us more about these top skills" | Close the upsell with its X, never the offer button; press **Done** on the skills prompt |
+| **Top skills** (About form) | A skill not yet on the profile appears under "Additional skills"; picking it also adds it to Skills | Pick LinkedIn's own entry; removing a top skill leaves it in Skills |
 | **Delete** anything | "This action cannot be undone", so it needs its own explicit yes | Get that explicit yes, then read the item name in the dialog before confirming |
 | **Unfollow** a page | Confirmation dialog | Silent; the page isn't notified |
 

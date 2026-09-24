@@ -26,7 +26,7 @@ public, so everything in it is public too.
 |---|---|---|
 | `general` | `doc-preview` | Renders a markdown doc to a self-contained page in csarko.sh's theme and opens it in Chrome. |
 | `general` | `search-console` | Reports Google Search Console status for a static site: indexing, sitemap fetch, search performance. Needs `google-auth`. |
-| `general` | `linkedin` | Does LinkedIn work quietly in the user's signed-in browser: profile audit and edits, messages, invitations and notifications. Shared safety rules in `SKILL.md`, one reference file per task. Needs browser tools. |
+| `general` | `linkedin` | Does LinkedIn work quietly in the user's signed-in browser: profile audit and edits, messages, invitations, notifications, and settings that cut unwanted contact and emails. Shared safety rules in `SKILL.md`, one reference file per task. Needs browser tools. |
 | `general` | `recruiter-replies` | Finds recruiter messages on LinkedIn and in Gmail, drafts replies from the user's private preferences file, and sends only the replies the user approves. Needs browser and Gmail tools. |
 | `general-claude` | `doc-artifact` | Publishes a markdown doc as a claude.ai Artifact in a Nord house style. |
 
@@ -51,6 +51,8 @@ public, so everything in it is public too.
   that already installed the plugin. The tests require the two manifests to match.
 - **No Git LFS.** Plugin installs copy the files as they are, so a binary must be a real file
   in git. Keep binaries small (the two fonts are 80 KB together).
+- **Commit and push straight to `main`.** No feature branches and no pull requests for this
+  repo, whatever an agent's default is. Run the offline tests before pushing.
 - **This repo is public.** Everything committed here, commit messages included, is visible to
   anyone. Keep skills free of anything private to the repositories they came from.
 

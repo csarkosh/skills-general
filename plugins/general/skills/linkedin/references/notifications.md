@@ -47,4 +47,4 @@ Open a person's profile only when the user names that person and asks. Report wh
 ## Never
 
 **Never react**, comment, follow, connect, delete a notification, or change notification settings
-from this page. Invitations are handled with `references/invitations.md`.
+from this page. Notification settings are changed with `references/settings.md`. Invitations are handled with `references/invitations.md`.

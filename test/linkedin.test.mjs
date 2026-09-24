@@ -11,7 +11,7 @@ const SKILL = join(ROOT, 'plugins/general/skills/linkedin');
 const read = (path) => (existsSync(path) ? readFileSync(path, 'utf8') : '');
 const skillText = read(join(SKILL, 'SKILL.md'));
 const ref = (name) => read(join(SKILL, 'references', name));
-const TASKS = ['profile.md', 'messages.md', 'invitations.md', 'notifications.md'];
+const TASKS = ['profile.md', 'messages.md', 'invitations.md', 'notifications.md', 'settings.md'];
 const OLD_NAME = ['linkedin', 'profile'].join('-');
 
 describe('linkedin', () => {
@@ -72,6 +72,16 @@ describe('linkedin', () => {
 
   it('notifications.md skips opening items for a summary-only request', () => {
     assert.match(ref('notifications.md'), /only for a summary/, 'notifications.md covers a summary-only request');
+  });
+
+  it('settings.md reads first, keeps Open to Work without deleting it, and says what no setting fixes', () => {
+    for (const phrase of ['Read everything first', 'Visible only to you', 'Delete job preferences', 'inmail-hit-reply@linkedin.com', 'No LinkedIn setting', 'opt-out form']) {
+      assert.ok(ref('settings.md').includes(phrase), `settings.md says "${phrase}"`);
+    }
+  });
+
+  it('profile.md no longer keeps Open to Work on by default', () => {
+    assert.doesNotMatch(ref('profile.md'), /stays on \*\*Recruiters only\*\*/, 'profile.md asks about Open to Work instead');
   });
 
   it('leaves no mention of the old skill name outside docs/', () => {
