@@ -28,6 +28,7 @@ public, so everything in it is public too.
 | `general` | `search-console` | Reports Google Search Console status for a static site: indexing, sitemap fetch, search performance. Needs `google-auth`. |
 | `general` | `linkedin` | Does LinkedIn work quietly in the user's signed-in browser: profile audit and edits, messages, invitations, notifications, and settings that cut unwanted contact and emails. Shared safety rules in `SKILL.md`, one reference file per task. Needs browser tools. |
 | `general` | `recruiter-replies` | Finds recruiter messages on LinkedIn and in Gmail, drafts replies from the user's private preferences file, and sends only the replies the user approves. Needs browser and Gmail tools. |
+| `general` | `call-recorder` | Records a call on macOS as two tracks (far side via BlackHole, mic) and transcribes it locally with mlx-whisper into speaker-labelled turns; also transcribes a single voice memo. Needs Python, `mlx-whisper`, ffmpeg and BlackHole on Apple Silicon. |
 | `general-claude` | `doc-artifact` | Publishes a markdown doc as a claude.ai Artifact in a Nord house style. |
 
 ## Workflows
@@ -46,6 +47,8 @@ public, so everything in it is public too.
   checks the known offenders.
 - **Scripts carry their own dependencies.** An installed plugin has no `node_modules`, so a
   script vendors what it imports (as `doc-preview` vendors `marked`) and needs only Node.
+  A skill that needs an outside runtime (Python for `search-console` and `call-recorder`) says
+  so in its `SKILL.md` and `README.md`, and fails with the install command when it is missing.
 - **Bump the version on every change to a plugin**, in every manifest that plugin has. Both
   agents cache installs by version, so a change without a bump may never reach a repository
   that already installed the plugin. The tests require the two manifests to match.
