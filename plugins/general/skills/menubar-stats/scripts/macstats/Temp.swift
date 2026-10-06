@@ -1,6 +1,6 @@
 // The Temp menu bar item: "Temp" over the CPU and GPU temperatures, and a panel
 // with every sensor the Mac has: temperatures as one row per part (hottest first,
-// coloured by heat), then voltage, current, power and fans.
+// coloured by heat), then power in plain words, then fans.
 
 import Cocoa
 
@@ -18,16 +18,53 @@ func heatColor(_ celsius: Double) -> NSColor {
     celsius < 60 ? .systemGreen : celsius < 80 ? .systemYellow : .systemRed
 }
 
-/// The sections after Temperature, in Stats' order, with their captions.
-let otherSections: [(kind: SensorKind, title: String)] = [
-    (.voltage, "Voltage"), (.current, "Current"), (.power, "Power"), (.fan, "Fans"),
-]
+/// One row of the Power section.
+struct PowerLine {
+    let id: String
+    let title: String
+    let value: String
+    let tooltip: String?
+}
+
+/// The Power section: the SMC's voltage, current and power readings in plain words.
+/// What the whole Mac uses, the battery, the charger (only while one is connected,
+/// with its voltage and current in the tooltip) and the internal supply; any other
+/// such sensor follows under its own name.
+func powerLines(_ readings: [Reading]) -> [PowerLine] {
+    let byKey = Dictionary(readings.map { ($0.sensor.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+    var lines: [PowerLine] = []
+    if let total = byKey["PSTR"] {
+        lines.append(PowerLine(id: "PSTR", title: "Total", value: String(format: "%.1f W", total),
+                               tooltip: "Everything the Mac is using right now."))
+    }
+    if let battery = byKey["PPBR"] {
+        lines.append(PowerLine(id: "PPBR", title: "Battery", value: String(format: "%.1f W", battery),
+                               tooltip: "Power coming out of the battery; about 0 while a charger covers everything."))
+    }
+    let chargerWatts = byKey["PDTR"] ?? 0, chargerVolts = byKey["VD0R"] ?? 0, chargerAmps = byKey["ID0R"] ?? 0
+    if chargerWatts > 0.5 || chargerVolts > 1 {
+        lines.append(PowerLine(id: "charger", title: "Charger", value: String(format: "%.1f W", chargerWatts),
+                               tooltip: String(format: "Coming in from the charger at %.1f V and %.2f A.", chargerVolts, chargerAmps)))
+    }
+    if let supply = byKey["VP0R"] {
+        lines.append(PowerLine(id: "VP0R", title: "Internal supply", value: String(format: "%.2f V", supply),
+                               tooltip: "The Mac's main internal supply line; it stays near 12 V."))
+    }
+    let shown: Set<String> = ["PSTR", "PPBR", "PDTR", "VD0R", "ID0R", "VP0R"]
+    for reading in readings where [.power, .voltage, .current].contains(reading.sensor.kind) && !shown.contains(reading.sensor.key) {
+        lines.append(PowerLine(id: reading.sensor.key, title: reading.sensor.name, value: formatReading(reading), tooltip: nil))
+    }
+    return lines
+}
 
 final class TempPanel: StatsPanel {
     private let reader: SensorReader
     private let temperatureList = NSStackView()
     private var temperatureRows: [String: PanelRow] = [:]
-    private var otherRows: [String: PanelRow] = [:]  // by SMC key
+    private let powerCaption = separatorView("Power")
+    private let powerList = NSStackView()
+    private var powerRows: [String: PanelRow] = [:]  // by PowerLine id
+    private var fanRows: [String: PanelRow] = [:]    // by SMC key
 
     init(reader: SensorReader) {
         self.reader = reader
@@ -47,17 +84,23 @@ final class TempPanel: StatsPanel {
             }
             body.addArrangedSubview(temperatureList)
         }
-        for section in otherSections {
-            let sensors = reader.sensors.filter { $0.kind == section.kind }
-            guard !sensors.isEmpty else { continue }
-            body.addArrangedSubview(separatorView(section.title))
-            for sensor in sensors {
-                let row = PanelRow(sensor.name + ":")
-                otherRows[sensor.key] = row
+        if reader.sensors.contains(where: { [.power, .voltage, .current].contains($0.kind) }) {
+            body.addArrangedSubview(powerCaption)
+            powerList.orientation = .vertical
+            powerList.alignment = .leading
+            powerList.spacing = 0
+            body.addArrangedSubview(powerList)
+        }
+        let fans = reader.sensors.filter { $0.kind == .fan }
+        if !fans.isEmpty {
+            body.addArrangedSubview(separatorView("Fans"))
+            for fan in fans {
+                let row = PanelRow(fan.name + ":")
+                fanRows[fan.key] = row
                 body.addArrangedSubview(row)
             }
         }
-        if groups.isEmpty && otherRows.isEmpty {
+        if groups.isEmpty && body.arrangedSubviews.isEmpty {
             let none = NSTextField(labelWithString: "This Mac reports no sensors.")
             none.font = .systemFont(ofSize: 12)
             none.textColor = .secondaryLabelColor
@@ -81,8 +124,17 @@ final class TempPanel: StatsPanel {
                 : "\(group.count) sensors, \(degrees(group.coolest)) to \(degrees(group.hottest)), weighted toward the hottest."
         }
         temperatureList.setViews(groups.compactMap { temperatureRows[$0.name] }, in: .top)
+        // Power rows come and go with the charger.
+        let lines = powerLines(readings)
+        for line in lines {
+            let row = powerRows[line.id] ?? PanelRow(line.title + ":")
+            powerRows[line.id] = row
+            row.value.stringValue = line.value
+            row.toolTip = line.tooltip
+        }
+        powerList.setViews(lines.compactMap { powerRows[$0.id] }, in: .top)
         let byKey = Dictionary(readings.map { ($0.sensor.key, $0) }, uniquingKeysWith: { first, _ in first })
-        for (key, row) in otherRows {
+        for (key, row) in fanRows {
             row.value.stringValue = byKey[key].map(formatReading) ?? "–"
         }
         if isVisible { fitToContents() }
@@ -103,10 +155,11 @@ func sensorsReport() -> Int32 {
         print([group.name, String(format: "%.1f", group.celsius), String(group.count),
                String(format: "%.1f-%.1f", group.coolest, group.hottest)].joined(separator: "\t"))
     }
-    for section in otherSections {
-        let rows = readings.filter { $0.sensor.kind == section.kind }
-        if !rows.isEmpty { print(section.title) }
-        for reading in rows { print(reading.sensor.name + "\t" + formatReading(reading)) }
-    }
+    let lines = powerLines(readings)
+    if !lines.isEmpty { print("Power") }
+    for line in lines { print(line.title + "\t" + line.value) }
+    let fans = readings.filter { $0.sensor.kind == .fan }
+    if !fans.isEmpty { print("Fans") }
+    for reading in fans { print(reading.sensor.name + "\t" + formatReading(reading)) }
     return 0
 }

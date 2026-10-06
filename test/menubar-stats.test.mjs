@@ -106,6 +106,20 @@ describe('menubar-stats', () => {
       }
     });
 
+    it('puts voltage, current and power in one plain Power section', () => {
+      const lines = runOk(binary, ['--sensors']).stdout.trim().split('\n');
+      for (const raw of ['Voltage', 'Current']) assert.ok(!lines.includes(raw), `no separate ${raw} section`);
+      const start = lines.indexOf('Power');
+      if (start < 0) return; // a Mac without power sensors has no Power section
+      const titles = [];
+      for (const line of lines.slice(start + 1)) {
+        if (!line.includes('\t')) break;
+        titles.push(line.split('\t')[0]);
+      }
+      for (const raw of ['System Total', 'DC In', '12V rail']) assert.ok(!titles.includes(raw), `${raw} is shown in plain words`);
+      if (process.arch === 'arm64') assert.equal(titles[0], 'Total', 'what the whole Mac uses comes first');
+    });
+
     it('gives every Disk Spaces row under Used a colour, biggest first, Free last', () => {
       const rows = runOk(binary, ['--legend']).stdout.trim().split('\n').map((line) => line.split('\t'));
       assert.deepEqual(rows.map(([title]) => title).sort(),

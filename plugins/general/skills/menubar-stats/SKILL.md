@@ -94,9 +94,9 @@ change the cut-off), and `--show-panel temp|disk` starts it with that panel open
 
 ## The Temp panel
 
-Sections as Stats has them, each only when the Mac has such sensors: Temperature, Voltage,
-Current, Power and Fans. The sensors are the SMC keys in `SensorCatalog.swift` that this chip
-answers (generated from Stats' list, so new chips arrive with a Stats update).
+Three sections, each only when the Mac has such sensors: Temperature, Power and Fans. The sensors
+are the SMC keys in `SensorCatalog.swift` that this chip answers (generated from Stats' list, so new
+chips arrive with a Stats update).
 
 **Temperature is one row per part of the Mac**, hottest first: numbered sensors share a row
 ("CPU performance core 1" to "8" are "CPU performance cores", "GPU 1" to "8" are "GPU",
@@ -104,8 +104,13 @@ answers (generated from Stats' list, so new chips arrive with a Stats update).
 by e^((t − hottest) / 3 °C), so the hottest counts fully, one 3 °C cooler about 37% and one
 6 °C cooler about 14%. The tooltip gives the sensor count and range. Squares are green under
 60 °C, yellow under 80 °C, red from 80 °C. The menu bar shows the CPU and GPU core sensors,
-weighted the same way, in °F where the Mac's region uses US units and °C elsewhere. Voltage,
-Current, Power and Fans list each sensor by name.
+weighted the same way, in °F where the Mac's region uses US units and °C elsewhere.
+
+**Power is Stats' Voltage, Current and Power sections in plain words**, each row with a tooltip
+saying what it is: Total (`PSTR`, everything the Mac uses), Battery (`PPBR`, power out of the
+battery), Charger (`PDTR` in watts, with `VD0R` volts and `ID0R` amps in its tooltip; shown only
+while a charger is connected) and Internal supply (`VP0R`, the main supply line, near 12 V). Any
+other power, voltage or current sensor follows under Stats' name for it. Fans lists each fan in RPM.
 
 Reading the SMC needs no permission and causes no privacy prompt.
 
