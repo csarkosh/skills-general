@@ -3,17 +3,20 @@
 // Stats app (a 7pt label over a 12pt value) so it sits beside Stats' CPU, GPU and
 // RAM items. Stats' own Disk widgets cannot put a label over custom text.
 //
-// Clicking it opens a window listing where the space goes: macOS system,
-// update/boot, recovery, swap, and my apps / files, the last broken down into
-// folders three levels deep. Right-clicking it shows Quit.
+// Clicking it drops down a panel, styled like Stats' panels, listing where the
+// space goes: macOS system, update/boot, recovery, swap, and my apps / files, the
+// last broken down into folders three levels deep. Private folders (Desktop,
+// Documents, Downloads, other apps' data, Mail, Photos and the like) are never
+// opened, so macOS never asks for access to them. Right-clicking it shows Quit.
 //
 //   swiftc -O diskmenu.swift -o DiskMenu   # setup.sh builds it into DiskMenu.app
 //   DiskMenu                               # runs as a menu bar item
+//   DiskMenu --show-panel                  # runs, with the panel open
 //   DiskMenu --render out.png              # draws the item to a PNG and exits
+//   DiskMenu --spaces                      # prints the five spaces and exits
 //   DiskMenu --report [folder] [--min-mb N]
-//                                          # prints the window's list and exits; with a
+//                                          # prints the panel's list and exits; with a
 //                                          # folder, only that folder's tree
-//   DiskMenu --spaces                      # prints only the five spaces and exits
 
 import Cocoa
 
@@ -67,23 +70,33 @@ func diskFigures() -> (value: String, free: String)? {
     return ("\(gb(total - free))/\(gb(total)) GB", "\(gb(free)) GB")
 }
 
-// MARK: - Where the space goes
+// MARK: - The five spaces
 
-/// A row in the Disk window: one of the five spaces, or a folder inside the last.
+/// A row in the panel: one of the five spaces, or a folder inside the last.
 final class Entry {
     let title: String
     let path: String?
-    var bytes: Int64?
+    var bytes: Int64
+    /// "private" for a folder DiskMenu does not open, "no access" for one macOS
+    /// would not let it read. Either way its size is unknown.
+    var note: String?
+    /// True when a folder inside this one was not counted, so the size is a minimum.
+    var partial = false
     var children: [Entry] = []
 
-    init(title: String, path: String? = nil, bytes: Int64? = nil) {
+    init(title: String, path: String? = nil, bytes: Int64 = 0) {
         self.title = title
         self.path = path
         self.bytes = bytes
     }
+
+    var sizeText: String {
+        if let note { return note }
+        return (partial ? "≥ " : "") + formatSize(bytes)
+    }
 }
 
-/// The startup disk's APFS volumes, by role, in the order the window lists them.
+/// The startup disk's APFS volumes, by role, in the order the panel lists them.
 let spaceRoles: [(title: String, roles: [String])] = [
     ("macOS system", ["System"]),
     ("update/boot", ["Preboot", "Update"]),
@@ -91,11 +104,6 @@ let spaceRoles: [(title: String, roles: [String])] = [
     ("swap", ["VM"]),
     ("my apps / files", ["Data"]),
 ]
-
-/// The Data volume's root: everything installed or saved since macOS shipped.
-let dataVolume = FileManager.default.fileExists(atPath: "/System/Volumes/Data") ? "/System/Volumes/Data" : "/"
-let folderDepth = 3
-let defaultMinimumBytes: Int64 = 100_000_000
 
 func runTool(_ path: String, _ arguments: [String]) -> Data? {
     let process = Process()
@@ -116,7 +124,7 @@ func plist(_ data: Data?) -> [String: Any]? {
 }
 
 /// The space each role uses on the startup disk's APFS container, as diskutil
-/// reports it. Needs no administrator rights.
+/// reports it. Reads no folders and needs no administrator rights.
 func volumeSpaces() -> [(title: String, bytes: Int64)] {
     guard let info = plist(runTool("/usr/sbin/diskutil", ["info", "-plist", "/"])),
           let container = info["APFSContainerReference"] as? String,
@@ -131,35 +139,109 @@ func volumeSpaces() -> [(title: String, bytes: Int64)] {
     }
 }
 
+// MARK: - Folders, without opening private ones
+
+/// The Data volume's root: everything installed or saved since macOS shipped.
+let dataVolume = FileManager.default.fileExists(atPath: "/System/Volumes/Data") ? "/System/Volumes/Data" : "/"
+let folderDepth = 3
+let defaultMinimumBytes: Int64 = 100_000_000
+
+/// Folders in each home that macOS guards with a privacy prompt, or that hold a
+/// person's private data. DiskMenu never opens them: it lists them by name, and
+/// a folder holding one shows its size as a minimum (≥).
+let privateHomeFolders = [
+    "Desktop", "Documents", "Downloads",
+    "Library/Mobile Documents", "Library/CloudStorage", "Library/Application Support/FileProvider",
+    "Library/Containers", "Library/Group Containers", "Library/Daemon Containers",
+    "Library/Mail", "Library/Messages", "Library/Safari", "Library/Calendars", "Library/Reminders",
+    "Library/HomeKit", "Library/Cookies", "Library/Suggestions", "Library/IdentityServices",
+    "Library/Accounts", "Library/Sharing", "Library/Biome", "Library/Metadata/CoreSpotlight",
+    "Library/Application Support/AddressBook", "Library/Application Support/CallHistoryDB",
+    "Library/Application Support/CallHistoryTransactions", "Library/Application Support/Knowledge",
+    "Library/Application Support/com.apple.TCC", "Library/Application Support/com.apple.sharedfilelist",
+    // Listing anything inside Music or Movies makes macOS ask for the media library.
+    "Library/Photos", "Library/Caches/com.apple.Music", "Music", "Movies",
+]
+/// Library packages of the Photos, Music and TV apps, wherever they are kept.
+let privatePackageExtensions: Set<String> = [
+    "photoslibrary", "photolibrary", "migratedphotolibrary", "aplibrary", "musiclibrary", "tvlibrary",
+]
+
 /// Folders under `root`, down to `depth` levels, each at least `minimumBytes`,
-/// biggest first. Sizes come from du, which counts a cloned file in full and
-/// skips what macOS does not let this app read.
+/// biggest first. Counts allocated blocks like du (a cloned file counts in full,
+/// a hard-linked one once) and stays on root's volume. Private folders are listed
+/// but never opened, so measuring causes no privacy prompt.
 func scanFolders(_ root: String, depth: Int = folderDepth, minimumBytes: Int64 = defaultMinimumBytes) -> [Entry] {
-    guard let data = runTool("/usr/bin/du", ["-k", "-x", "-d", String(depth), root]) else { return [] }
     let rootPath = root.count > 1 && root.hasSuffix("/") ? String(root.dropLast()) : root
-    var entries: [String: Entry] = [:]
-    for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
-        guard let tab = line.firstIndex(of: "\t"), let kilobytes = Int64(line[..<tab]) else { continue }
-        let path = String(line[line.index(after: tab)...]).replacingOccurrences(of: "//", with: "/")
-        entries[path] = Entry(title: (path as NSString).lastPathComponent, path: path, bytes: kilobytes * 1024)
+    let base = rootPath == "/" ? "" : rootPath
+    var privatePaths: Set<String> = [base + "/Volumes"]  // removable and network volumes
+    let users = base + "/Users"
+    // Listing the folder of homes names them without opening any.
+    for name in (try? FileManager.default.contentsOfDirectory(atPath: users)) ?? [] {
+        for folder in privateHomeFolders { privatePaths.insert("\(users)/\(name)/\(folder)") }
     }
+
     var top: [Entry] = []
-    // A folder is never bigger than its parent, so a parent under the minimum
-    // has no children over it. An app is one row: its insides are just Contents.
-    for (path, entry) in entries where path != rootPath && (entry.bytes ?? 0) >= minimumBytes {
-        let parent = (path as NSString).deletingLastPathComponent
-        if parent == rootPath {
-            top.append(entry)
-        } else if !parent.contains(".app/") && !parent.hasSuffix(".app") {
-            entries[parent]?.children.append(entry)
+    var ancestors = [Entry?](repeating: nil, count: depth + 1)
+    var counted = Set<UInt64>()  // hard-linked files already counted, by inode
+
+    var argv: [UnsafeMutablePointer<CChar>?] = [strdup(rootPath), nil]
+    defer { free(argv[0]) }
+    guard let fts = fts_open(&argv, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return [] }
+    defer { fts_close(fts) }
+
+    func add(_ bytes: Int64, through level: Int) {
+        for k in stride(from: 1, through: min(level, depth), by: 1) { ancestors[k]?.bytes += bytes }
+    }
+    func markAncestorsPartial(below level: Int) {
+        for k in stride(from: 1, to: min(level, depth + 1), by: 1) { ancestors[k]?.partial = true }
+    }
+
+    while let entry = fts_read(fts) {
+        let level = Int(entry.pointee.fts_level)
+        switch Int32(entry.pointee.fts_info) {
+        case FTS_D:
+            let path = String(cString: entry.pointee.fts_path)
+            if level >= 1 && level <= depth {
+                let folder = Entry(title: (path as NSString).lastPathComponent, path: path)
+                ancestors[level] = folder
+                if level == 1 {
+                    top.append(folder)
+                } else if let parent = ancestors[level - 1], !(parent.path ?? "").hasSuffix(".app") {
+                    parent.children.append(folder)  // an app is one row
+                }
+            }
+            if privatePaths.contains(path)
+                || privatePackageExtensions.contains((path as NSString).pathExtension.lowercased()) {
+                fts_set(fts, entry, FTS_SKIP)
+                if level >= 1 && level <= depth { ancestors[level]?.note = "private" }
+                markAncestorsPartial(below: level)
+                continue
+            }
+            add(Int64(entry.pointee.fts_statp.pointee.st_blocks) * 512, through: level)
+        case FTS_DNR:
+            if level >= 1 && level <= depth { ancestors[level]?.note = "no access" }
+            markAncestorsPartial(below: level)
+        case FTS_F, FTS_SL, FTS_SLNONE, FTS_DEFAULT:
+            let stat = entry.pointee.fts_statp.pointee
+            if stat.st_nlink > 1 && !counted.insert(UInt64(stat.st_ino)).inserted { continue }
+            add(Int64(stat.st_blocks) * 512, through: level - 1)
+        default:
+            break
         }
     }
-    func sort(_ list: inout [Entry]) {
-        list.sort { ($0.bytes ?? 0, $1.title) > ($1.bytes ?? 0, $0.title) }
-        for entry in list { sort(&entry.children) }
+
+    // Keep what is big enough, every private folder, and unreadable folders in a
+    // home (the Trash, say); a folder unreadable elsewhere belongs to the system.
+    func keep(_ list: [Entry]) -> [Entry] {
+        list.filter { entry in
+            entry.bytes >= minimumBytes || entry.note == "private"
+                || (entry.note != nil && (entry.path ?? "").hasPrefix(users + "/"))
+        }
+        .sorted { ($0.bytes, $1.title) > ($1.bytes, $0.title) }
+        .map { entry in entry.children = keep(entry.children); return entry }
     }
-    sort(&top)
-    return top
+    return keep(top)
 }
 
 func formatSize(_ bytes: Int64) -> String {
@@ -168,150 +250,314 @@ func formatSize(_ bytes: Int64) -> String {
         : String(format: "%.0f MB", Double(bytes) / 1_000_000)
 }
 
-// MARK: - The Disk window
+// MARK: - The panel, styled like Stats' popups
 
-final class DiskWindow: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
-    private var window: NSWindow?
-    private let outline = NSOutlineView()
-    private let status = NSTextField(labelWithString: "")
+/// Stats' popup sizes: 264 wide inside 8 of margin, a 42-high header, 22-high rows.
+enum Panel {
+    static let width: CGFloat = 264
+    static let margin: CGFloat = 8
+    static let header: CGFloat = 42
+    static let row: CGFloat = 22
+    static let foldersHeight: CGFloat = 22 * 15
+}
+
+/// A section caption like Stats': small spaced capitals between two lines.
+func separatorView(_ title: String) -> NSView {
+    let view = NSView()
+    view.translatesAutoresizingMaskIntoConstraints = false
+    let label = NSTextField(labelWithString: "")
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.attributedStringValue = NSAttributedString(string: title.uppercased(), attributes: [
+        .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+        .foregroundColor: NSColor.tertiaryLabelColor,
+        .kern: 1.0,
+    ])
+    let left = NSBox(), right = NSBox()
+    for line in [left, right] {
+        line.boxType = .separator
+        line.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(line)
+    }
+    view.addSubview(label)
+    NSLayoutConstraint.activate([
+        view.heightAnchor.constraint(equalToConstant: 30),
+        view.widthAnchor.constraint(equalToConstant: Panel.width),
+        label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+        label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        left.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+        left.trailingAnchor.constraint(equalTo: label.leadingAnchor, constant: -8),
+        left.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        right.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
+        right.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        right.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+    ])
+    return view
+}
+
+/// A label on the left in secondary text and a value on the right, like Stats' rows.
+final class PanelRow: NSView {
+    let label = NSTextField(labelWithString: "")
+    let value = NSTextField(labelWithString: "")
+
+    init(_ title: String) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        label.stringValue = title
+        label.font = .systemFont(ofSize: 12)
+        label.textColor = .secondaryLabelColor
+        value.font = .systemFont(ofSize: 13)
+        value.alignment = .right
+        for field in [label, value] {
+            field.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(field)
+        }
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: Panel.row),
+            widthAnchor.constraint(equalToConstant: Panel.width),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            value.trailingAnchor.constraint(equalTo: trailingAnchor),
+            value.centerYAnchor.constraint(equalTo: centerYAnchor),
+            value.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 8),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate {
+    let outline = NSOutlineView()
+    private let status = NSTextField(wrappingLabelWithString: "")
     private let spinner = NSProgressIndicator()
-    private let spaces: [Entry] = spaceRoles.map { Entry(title: $0.title) }
-    private var files: Entry { spaces[spaces.count - 1] }
-    private var scannedAt: Date?
-    private var scanning = false
+    private var spaceRows: [PanelRow] = []
+    private var folders: [Entry] = []
+    private(set) var scanning = false
+    private var measuredAt: Date?
 
-    func show() {
-        if window == nil { build() }
-        refreshVolumes()
-        // A full scan takes a minute or two, so reuse one from the last 10 minutes.
-        if scannedAt.map({ Date().timeIntervalSince($0) > 600 }) ?? true { measureFolders() }
-        if #available(macOS 14, *) { NSApp.activate() } else { NSApp.activate(ignoringOtherApps: true) }
-        window?.makeKeyAndOrderFront(nil)
+    init() {
+        super.init(contentRect: NSRect(x: 0, y: 0, width: Panel.width + Panel.margin * 2, height: 400),
+                   styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: true)
+        titleVisibility = .hidden
+        titlebarAppearsTransparent = true
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            standardWindowButton(button)?.isHidden = true
+        }
+        collectionBehavior = .moveToActiveSpace
+        isReleasedWhenClosed = false
+        hasShadow = true
+        delegate = self
+        build()
+    }
+
+    var isMeasured: Bool { measuredAt != nil && !scanning }
+
+    // Like Stats' popups, the panel closes when it stops being the key window.
+    func windowDidResignKey(_ notification: Notification) {
+        orderOut(nil)
     }
 
     private func build() {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 640),
-                              styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                              backing: .buffered, defer: false)
-        window.title = "Disk"
-        window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 380, height: 300)
+        let background = NSVisualEffectView()
+        background.material = .popover
+        background.blendingMode = .behindWindow
+        background.state = .active
+        contentView = background
 
+        let refresh = headerButton("arrow.clockwise", "Measure again", #selector(refreshAll))
+        let storage = headerButton("internaldrive", "Open Storage settings", #selector(openStorageSettings))
+        let title = NSTextField(labelWithString: "Disk")
+        title.font = .systemFont(ofSize: 16)
+        title.alignment = .center
+        let header = NSStackView(views: [refresh, title, storage])
+        header.distribution = .equalCentering
+        header.translatesAutoresizingMaskIntoConstraints = false
+
+        let body = NSStackView()
+        body.orientation = .vertical
+        body.alignment = .leading
+        body.spacing = 0
+        body.translatesAutoresizingMaskIntoConstraints = false
+        body.addArrangedSubview(separatorView("Spaces"))
+        for space in spaceRoles {
+            let row = PanelRow(space.title)
+            row.value.stringValue = "…"
+            spaceRows.append(row)
+            body.addArrangedSubview(row)
+        }
+        body.addArrangedSubview(separatorView("My apps / files"))
+
+        // The name column takes whatever the fixed size column leaves.
         let name = NSTableColumn(identifier: .init("name"))
-        name.title = "Space"
-        name.width = 460
+        name.width = Panel.width - 90
+        name.resizingMask = .autoresizingMask
         let size = NSTableColumn(identifier: .init("size"))
-        size.title = "Size"
-        size.width = 90
-        size.headerCell.alignment = .right
+        size.width = 72
+        size.resizingMask = []
         outline.addTableColumn(name)
         outline.addTableColumn(size)
         outline.outlineTableColumn = name
-        outline.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
-        outline.usesAlternatingRowBackgroundColors = true
-        // A custom row size, so the table keeps the fonts set below.
+        outline.style = .plain
+        outline.headerView = nil
+        outline.backgroundColor = .clear
         outline.rowSizeStyle = .custom
-        outline.rowHeight = 22
+        outline.rowHeight = Panel.row
+        outline.indentationPerLevel = 10
+        outline.intercellSpacing = NSSize(width: 4, height: 0)
+        outline.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
+        outline.selectionHighlightStyle = .none
         outline.dataSource = self
         outline.delegate = self
         outline.target = self
         outline.doubleAction = #selector(revealInFinder)
-
         let scroll = NSScrollView()
         scroll.documentView = outline
+        scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
-        scroll.borderType = .noBorder
+        scroll.autohidesScrollers = true
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        body.addArrangedSubview(scroll)
 
-        status.font = .systemFont(ofSize: 11)
-        status.textColor = .secondaryLabelColor
-        status.lineBreakMode = .byTruncatingTail
-        status.toolTip = "Folder sizes count a cloned file in full, so they can add up to more than the volume. "
-            + "Folders macOS protects (Mail, Messages, other apps' data) count only when DiskMenu has Full Disk Access."
         spinner.style = .spinning
         spinner.controlSize = .small
         spinner.isDisplayedWhenStopped = false
-        let refresh = NSButton(title: "Refresh", target: self, action: #selector(refreshAll))
-        refresh.bezelStyle = .rounded
+        status.font = .systemFont(ofSize: 10)
+        status.textColor = .tertiaryLabelColor
+        status.preferredMaxLayoutWidth = Panel.width - 24
+        status.toolTip = "Private folders (Desktop, Documents, Downloads, Music, Movies, other apps' data, Mail, "
+            + "Messages, Photos) are never opened, so macOS never asks for access to them. A folder holding one "
+            + "shows ≥, at least its size. Folder sizes count a cloned file in full, so they can add up to more "
+            + "than the volume. Double-click a folder to show it in Finder, whose Get Info shows a private folder's size."
+        let footer = NSStackView(views: [spinner, status])
+        footer.alignment = .top
+        footer.edgeInsets = NSEdgeInsets(top: 6, left: 0, bottom: 0, right: 0)
+        body.addArrangedSubview(footer)
 
-        let bar = NSStackView(views: [spinner, status, refresh])
-        bar.orientation = .horizontal
-        bar.spacing = 8
-        bar.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 10, right: 12)
-        status.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let stack = NSStackView(views: [scroll, bar])
-        stack.orientation = .vertical
-        stack.spacing = 0
-        stack.alignment = .leading
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        window.contentView = NSView()
-        window.contentView!.addSubview(stack)
+        background.addSubview(header)
+        background.addSubview(body)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: window.contentView!.bottomAnchor),
-            scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            bar.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            header.topAnchor.constraint(equalTo: background.topAnchor),
+            header.heightAnchor.constraint(equalToConstant: Panel.header),
+            header.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: Panel.margin),
+            header.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -Panel.margin),
+            body.topAnchor.constraint(equalTo: header.bottomAnchor),
+            body.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: Panel.margin),
+            body.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -Panel.margin),
+            body.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -Panel.margin),
+            scroll.widthAnchor.constraint(equalToConstant: Panel.width),
+            scroll.heightAnchor.constraint(equalToConstant: Panel.foldersHeight),
+            footer.widthAnchor.constraint(equalToConstant: Panel.width),
         ])
-        window.center()
-        self.window = window
+        updateStatus()
     }
 
-    private func refreshVolumes() {
+    /// Fits the panel to its contents, keeping its top edge where it is.
+    private func fitToContents() {
+        guard let content = contentView else { return }
+        content.layoutSubtreeIfNeeded()
+        let size = content.fittingSize
+        let top = frame.maxY
+        setFrame(NSRect(x: frame.minX, y: top - size.height, width: size.width, height: size.height), display: true)
+    }
+
+    private func headerButton(_ symbol: String, _ tip: String, _ action: Selector) -> NSButton {
+        let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: tip) ?? NSImage(),
+                              target: self, action: action)
+        button.isBordered = false
+        button.contentTintColor = .secondaryLabelColor
+        button.toolTip = tip
+        button.widthAnchor.constraint(equalToConstant: 24).isActive = true
+        return button
+    }
+
+    /// Opens under `button`, centred on it, kept on its screen: where Stats opens its panels.
+    func toggle(under button: NSStatusBarButton) {
+        if isVisible {
+            orderOut(nil)
+            return
+        }
+        refreshSpaces()
+        if measuredAt.map({ Date().timeIntervalSince($0) > 600 }) ?? true { measureFolders() }
+        if let anchor = button.window?.frame {
+            var x = anchor.midX - frame.width / 2
+            if let screen = button.window?.screen ?? NSScreen.main {
+                x = min(max(x, screen.frame.minX + 3), screen.frame.maxX - frame.width - 3)
+            }
+            setFrameOrigin(NSPoint(x: x, y: anchor.minY - frame.height - 3))
+        }
+        if #available(macOS 14, *) { NSApp.activate() } else { NSApp.activate(ignoringOtherApps: true) }
+        makeKeyAndOrderFront(nil)
+    }
+
+    func refreshSpaces() {
         DispatchQueue.global(qos: .userInitiated).async {
             let measured = volumeSpaces()
             DispatchQueue.main.async {
-                for (entry, space) in zip(self.spaces, measured) { entry.bytes = space.bytes }
-                self.outline.reloadData()
+                for (row, space) in zip(self.spaceRows, measured) { row.value.stringValue = formatSize(space.bytes) }
             }
         }
     }
 
-    private func measureFolders() {
+    func measureFolders() {
         guard !scanning else { return }
         scanning = true
         spinner.startAnimation(nil)
         updateStatus()
         DispatchQueue.global(qos: .utility).async {
-            let folders = scanFolders(dataVolume)
+            let measured = scanFolders(dataVolume)
             DispatchQueue.main.async {
-                self.files.children = folders
+                self.folders = measured
                 self.scanning = false
-                self.scannedAt = Date()
+                self.measuredAt = Date()
                 self.spinner.stopAnimation(nil)
                 self.outline.reloadData()
-                self.outline.expandItem(self.files)
+                // Open the biggest branch, so its third level shows.
+                var next = self.folders.first
+                while let folder = next, !folder.children.isEmpty {
+                    self.outline.expandItem(folder)
+                    next = folder.children.first
+                }
                 self.updateStatus()
             }
         }
     }
 
     private func updateStatus() {
+        let privacy = "Private folders are never opened; ≥ means at least."
         if scanning {
-            status.stringValue = "Measuring folders; this takes a minute or two…"
-        } else if let scannedAt {
-            let time = DateFormatter.localizedString(from: scannedAt, dateStyle: .none, timeStyle: .short)
-            status.stringValue = "Folders 3 deep, 100 MB and over, measured \(time). Double-click to show in Finder."
+            status.stringValue = "Measuring folders, about a minute… " + privacy
+        } else if let measuredAt {
+            let time = DateFormatter.localizedString(from: measuredAt, dateStyle: .none, timeStyle: .short)
+            status.stringValue = "Measured \(time). " + privacy
+        } else {
+            status.stringValue = privacy
         }
+        fitToContents()
     }
 
     @objc private func refreshAll() {
-        refreshVolumes()
+        refreshSpaces()
         measureFolders()
+    }
+
+    @objc private func openStorageSettings() {
+        orderOut(nil)
+        if let url = URL(string: "x-apple.systempreferences:com.apple.settings.Storage") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func revealInFinder() {
         guard let entry = outline.item(atRow: outline.clickedRow) as? Entry, let path = entry.path else { return }
+        orderOut(nil)
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-        (item as? Entry)?.children.count ?? spaces.count
+        (item as? Entry)?.children.count ?? folders.count
     }
 
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-        (item as? Entry)?.children[index] ?? spaces[index]
+        (item as? Entry)?.children[index] ?? folders[index]
     }
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
@@ -329,20 +575,21 @@ final class DiskWindow: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate
             cell.addSubview(text)
             cell.textField = text
             NSLayoutConstraint.activate([
-                text.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
-                text.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+                text.leadingAnchor.constraint(equalTo: cell.leadingAnchor),
+                text.trailingAnchor.constraint(equalTo: cell.trailingAnchor),
                 text.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
             ])
             return cell
         }()
-        let isSpace = entry.path == nil
         if id.rawValue == "size" {
-            cell.textField?.stringValue = entry.bytes.map(formatSize) ?? "…"
+            cell.textField?.stringValue = entry.sizeText
             cell.textField?.alignment = .right
-            cell.textField?.font = .monospacedDigitSystemFont(ofSize: 13, weight: isSpace ? .semibold : .regular)
+            cell.textField?.font = .systemFont(ofSize: 12)
+            cell.textField?.textColor = entry.note == nil ? .labelColor : .tertiaryLabelColor
         } else {
             cell.textField?.stringValue = entry.title
-            cell.textField?.font = .systemFont(ofSize: 13, weight: isSpace ? .semibold : .regular)
+            cell.textField?.font = .systemFont(ofSize: 12)
+            cell.textField?.textColor = .secondaryLabelColor
             cell.toolTip = entry.path
         }
         return cell
@@ -354,7 +601,7 @@ final class DiskWindow: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var item: NSStatusItem!
     private let view = DiskView()
-    private let diskWindow = DiskWindow()
+    private lazy var panel = DiskPanel()
     private let menu = NSMenu()
     private var timer: Timer?
 
@@ -372,25 +619,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.action = #selector(clicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
-        menu.addItem(NSMenuItem(title: "Show Disk Usage", action: #selector(showWindow), keyEquivalent: ""))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit DiskMenu", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        for entry in menu.items where entry.action == #selector(showWindow) { entry.target = self }
+        menu.addItem(NSMenuItem(title: "Quit DiskMenu", action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
 
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.refresh() }
+        if CommandLine.arguments.contains("--show-panel") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.togglePanel() }
+        }
     }
 
     @objc private func clicked() {
         if NSApp.currentEvent?.type == .rightMouseUp, let button = item.button {
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 4), in: button)
         } else {
-            showWindow()
+            togglePanel()
         }
     }
 
-    @objc private func showWindow() {
-        diskWindow.show()
+    private func togglePanel() {
+        if let button = item.button { panel.toggle(under: button) }
     }
 
     private func refresh() {
@@ -441,12 +688,12 @@ func render(to path: String) -> Int32 {
     return 0
 }
 
-// Prints what the window lists, as an indented tree. With a folder, prints only
+// Prints what the panel lists, as an indented tree. With a folder, prints only
 // that folder's tree, which keeps tests fast.
 func report(folder: String?, minimumBytes: Int64) -> Int32 {
     func printTree(_ entries: [Entry], indent: Int) {
         for entry in entries {
-            print(String(repeating: "  ", count: indent) + entry.title + "\t" + formatSize(entry.bytes ?? 0))
+            print(String(repeating: "  ", count: indent) + entry.title + "\t" + entry.sizeText)
             printTree(entry.children, indent: indent + 1)
         }
     }

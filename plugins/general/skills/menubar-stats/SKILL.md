@@ -16,9 +16,10 @@ The Disk item is **DiskMenu**, about 100 lines of Swift in `scripts/diskmenu.swi
 Mac. Stats cannot draw it: its Disk text widget is a single 12pt line with no label, and its
 two-line "memory" widget shows free over used (people misread it as used over total).
 
-Clicking Disk opens a **Disk window** listing where the space goes, in this order: macOS
-system, update/boot, recovery, swap, and my apps / files, the last broken down into folders
-three levels deep (100 MB and over, biggest first; an app is one row). Right-click for Quit.
+Clicking Disk drops down a **Disk panel**, styled like Stats' panels, listing where the space
+goes in this order: macOS system, update/boot, recovery, swap, and my apps / files, the last broken
+down into folders three levels deep (100 MB and over, biggest first; an app is one row). It never
+opens private folders, so macOS never asks for access. Right-click for Quit.
 
 Use `scripts/setup.sh` in this skill's directory rather than writing your own: it holds the
 setting names, the order and the traps below. Change the layout by editing the script.
@@ -82,22 +83,32 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 - `~/Applications/DiskMenu.app/Contents/MacOS/DiskMenu --render /tmp/diskmenu.png` draws the
   Disk item to a PNG; open the image to look at it.
 
-## The Disk window
+## The Disk panel
 
-The five spaces are the startup disk's APFS volumes by role, from `diskutil apfs list`:
-System, Preboot plus Update, Recovery, VM and Data. The folders come from `du -x -d 3` on the
-Data volume (`/System/Volumes/Data`), which takes about a minute, so the window reuses a
-measurement for 10 minutes; Refresh measures again, and double-clicking a folder shows it in
-Finder. Folder sizes count a cloned file in full, so they can add up to more than the volume.
+The five spaces are the startup disk's APFS volumes by role, from `diskutil apfs list`: System,
+Preboot plus Update, Recovery, VM and Data. The folders are measured on the Data volume
+(`/System/Volumes/Data`), counting allocated blocks like `du -x`; it takes about a minute, so the
+panel reuses a measurement for 10 minutes. The header's arrow measures again, its drive icon opens
+Storage settings, and double-clicking a folder shows it in Finder.
 
-The first measurement may make macOS ask whether DiskMenu can open the Desktop, Documents and
-Downloads folders and other apps' data; the user allows them, or adds
-`~/Applications/DiskMenu.app` under System Settings › Privacy & Security › Full Disk Access.
-Without access those folders count smaller. `setup.sh` rebuilds DiskMenu only when its source
-changed, because a rebuild resets those permissions.
+**Privacy.** DiskMenu never opens the folders macOS guards with a permission prompt or that hold
+private data: Desktop, Documents, Downloads, Music, Movies, iCloud Drive and cloud-storage folders,
+other apps' data (`Library/Containers`, `Library/Group Containers`), Mail, Messages, Safari,
+Contacts, Calendars, and the Photos, Music and TV libraries. No app can learn a folder's size
+without reading inside it, so these show as **private** with no size, and a folder holding one
+shows **≥** (at least). macOS refuses a few system folders and the Trash silently, without a prompt;
+those show **no access**. Finder's Get Info shows a private folder's size.
 
-From a terminal, `DiskMenu --spaces` prints the five spaces and `DiskMenu --report` prints the
-whole list (add a folder to list only it, and `--min-mb N` to change the cut-off).
+To check that a change prompts for nothing, run the installed app as itself (`open -n -W -a
+~/Applications/DiskMenu.app --args --report`) and read which privacy services it asked for:
+`/usr/bin/log show --last 5m --info --predicate 'process == "tccd" AND eventMessage CONTAINS
+"Sub:{sh.csarko.DiskMenu}"'` (in zsh, `log` alone is a builtin). Only
+`kTCCServiceSystemPolicyAllFiles`, which never prompts, may appear while it measures. Listing inside
+`~/Music` or `~/Movies` alone triggers the media library prompt, so those stay private whole.
+
+From a terminal, `DiskMenu --spaces` prints the five spaces, `DiskMenu --report` prints the whole
+list (add a folder to list only it, and `--min-mb N` to change the cut-off), and `DiskMenu
+--show-panel` starts it with the panel open.
 
 ## Common mistakes
 

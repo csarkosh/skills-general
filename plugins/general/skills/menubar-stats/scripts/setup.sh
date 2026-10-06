@@ -137,8 +137,8 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 </dict>
 </plist>
 EOF
-# Rebuild only when the source changed: a rebuild gives the app a new signature, and
-# macOS then asks again for the folder access the Disk window's measuring needs.
+# Rebuild only when the source changed: a rebuild gives the app a new signature, which
+# resets any permission macOS has granted it.
 SOURCE_HASH="$(shasum -a 256 "$DIR/diskmenu.swift" | cut -d' ' -f1)"
 BUILT_HASH="$APP/Contents/Resources/source.sha256"
 if [ -x "$APP/Contents/MacOS/DiskMenu" ] && [ "$(cat "$BUILT_HASH" 2>/dev/null)" = "$SOURCE_HASH" ]; then

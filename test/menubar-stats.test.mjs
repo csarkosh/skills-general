@@ -61,24 +61,50 @@ describe('menubar-stats', () => {
       assert.deepEqual([...readFileSync(png).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], 'writes a PNG');
     });
 
-    it('lists the five spaces in the window\'s order', () => {
+    it('lists the five spaces in the panel\'s order', () => {
       const titles = runOk(binary, ['--spaces']).stdout.trim().split('\n').map((line) => line.split('\t')[0]);
       assert.deepEqual(titles, ['macOS system', 'update/boot', 'recovery', 'swap', 'my apps / files']);
     });
 
-    it('lists folders three deep, biggest first, with an app as one row', (t) => {
+    const tree = (t, files) => {
       const root = tempDir(t, 'diskmenu-tree');
-      const file = (path, megabytes) => {
+      for (const [path, megabytes] of Object.entries(files)) {
         mkdirSync(join(root, dirname(path)), { recursive: true });
         writeFileSync(join(root, path), randomBytes(megabytes * 1024 * 1024));
-      };
-      file('small/a/b/c/four-deep.bin', 3);
-      file('big/one.bin', 5);
-      file('Thing.app/Contents/MacOS/thing', 2);
-      file('tiny/under-the-cut-off.bin', 0.25);
+      }
       const { stdout } = runOk(binary, ['--report', root, '--min-mb', '1']);
-      const lines = stdout.trimEnd().split('\n').map((line) => line.split('\t')[0]);
-      assert.deepEqual(lines, ['big', 'small', '  a', '    b', 'Thing.app']);
+      return stdout.trimEnd().split('\n').map((line) => line.replace('\t', ' | '));
+    };
+
+    it('lists folders three deep, biggest first, with an app as one row', (t) => {
+      const lines = tree(t, {
+        'small/a/b/c/four-deep.bin': 3,
+        'big/one.bin': 5,
+        'Thing.app/Contents/MacOS/thing': 2,
+        'tiny/under-the-cut-off.bin': 0.25,
+      });
+      assert.deepEqual(lines.map((line) => line.split(' | ')[0]), ['big', 'small', '  a', '    b', 'Thing.app']);
+    });
+
+    it('lists private folders by name without counting what is in them', (t) => {
+      const lines = tree(t, {
+        'Users/alice/Projects/code.bin': 3,
+        'Users/alice/Documents/secret.bin': 9,
+        'Users/alice/Music/song.bin': 9,
+        'Users/alice/Library/Containers/app/data.bin': 9,
+        'Users/alice/Library/Caches/cache.bin': 2,
+        'Users/alice/Pictures/Photos Library.photoslibrary/photo.bin': 9,
+        'Users/alice/Pictures/mine.bin': 2,
+      });
+      assert.deepEqual(lines, [
+        'Users | ≥ 7 MB',
+        '  alice | ≥ 7 MB',
+        '    Projects | 3 MB',
+        '    Library | ≥ 2 MB',
+        '    Pictures | ≥ 2 MB',
+        '    Documents | private',
+        '    Music | private',
+      ]);
     });
   });
 });
