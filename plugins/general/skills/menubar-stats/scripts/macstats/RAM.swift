@@ -123,15 +123,19 @@ final class MemoryHistory {
 }
 
 /// Stats' usage history chart, with a band per part instead of one for used: App,
-/// Wired and Compressed stacked from the bottom, Free on top, newest at the right.
+/// Wired and Compressed stacked from the bottom, Free on top, newest at the right. Each
+/// band is labelled at the right edge with its name and size now, and a time axis runs
+/// underneath, so the chart reads without the rows.
 final class MemoryChart: NSView {
     var history: MemoryHistory?
+    private let plotHeight: CGFloat = 90
+    private let axisHeight: CGFloat = 13
 
     init() {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            heightAnchor.constraint(equalToConstant: 90),
+            heightAnchor.constraint(equalToConstant: plotHeight + axisHeight),
             widthAnchor.constraint(equalToConstant: Panel.width),
         ])
     }
@@ -139,32 +143,74 @@ final class MemoryChart: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func draw(_ dirtyRect: NSRect) {
-        let frame = NSBezierPath(roundedRect: bounds, xRadius: 6, yRadius: 6)
+        let plot = NSRect(x: 0, y: axisHeight, width: bounds.width, height: plotHeight)
+        drawAxis()
+        let frame = NSBezierPath(roundedRect: plot, xRadius: 6, yRadius: 6)
         NSColor.lightGray.withAlphaComponent(0.1).setFill()
         frame.fill()
         guard let history, history.samples.count > 1 else { return }
         NSGraphicsContext.saveGraphicsState()
         frame.addClip()
         let samples = history.samples
-        let step = bounds.width / CGFloat(history.capacity - 1)
-        let x = { (index: Int) in self.bounds.maxX - CGFloat(samples.count - 1 - index) * step }
+        let step = plot.width / CGFloat(history.capacity - 1)
+        let x = { (index: Int) in plot.maxX - CGFloat(samples.count - 1 - index) * step }
+        let y = { (fraction: Double) in plot.minY + CGFloat(fraction) * plot.height }
         // Cumulative tops, one per band, as fractions of all memory.
         var below = [Double](repeating: 0, count: samples.count)
+        var labels: [(text: String, bottom: Double, top: Double, onColor: Bool)] = []
         for (band, part) in memoryParts.enumerated() {
+            let isFree = band == memoryParts.count - 1
             let above = samples.indices.map { index in
-                band == memoryParts.count - 1 ? 1 : below[index] + part.value(samples[index]) / samples[index].total
+                isFree ? 1 : below[index] + part.value(samples[index]) / samples[index].total
             }
             let path = NSBezierPath()
-            path.move(to: CGPoint(x: x(0), y: CGFloat(below[0]) * bounds.height))
-            for index in samples.indices { path.line(to: CGPoint(x: x(index), y: CGFloat(above[index]) * bounds.height)) }
-            for index in samples.indices.reversed() { path.line(to: CGPoint(x: x(index), y: CGFloat(below[index]) * bounds.height)) }
+            path.move(to: CGPoint(x: x(0), y: y(below[0])))
+            for index in samples.indices { path.line(to: CGPoint(x: x(index), y: y(above[index]))) }
+            for index in samples.indices.reversed() { path.line(to: CGPoint(x: x(index), y: y(below[index]))) }
             path.close()
             // The same colours as the rows' squares, so each band reads as its row.
-            (band == memoryParts.count - 1 ? part.color.withAlphaComponent(0.5) : part.color).setFill()
+            (isFree ? part.color.withAlphaComponent(0.5) : part.color).setFill()
             path.fill()
+            let latest = samples[samples.count - 1]
+            labels.append(("\(part.title) \(formatMemory(part.value(latest)))", below.last!, above.last!, !isFree))
             below = above
         }
+        // Each band's name and size now, at the right edge, where the newest data is;
+        // a band too thin for the text goes unlabelled (its row below has the figure).
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.45)
+        shadow.shadowBlurRadius = 2
+        shadow.shadowOffset = .zero
+        let right = NSMutableParagraphStyle()
+        right.alignment = .right
+        for label in labels {
+            let height = CGFloat(label.top - label.bottom) * plot.height
+            guard height >= 12 else { continue }
+            var attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 9, weight: .semibold),
+                .foregroundColor: label.onColor ? NSColor.white : NSColor.labelColor,
+                .paragraphStyle: right,
+            ]
+            if label.onColor { attributes[.shadow] = shadow }
+            // Kept clear of the rounded corners.
+            let middle = max(y((label.bottom + label.top) / 2), plot.minY + 7)
+            NSAttributedString(string: label.text, attributes: attributes)
+                .draw(with: NSRect(x: plot.minX, y: middle - 6, width: plot.width - 10, height: 12))
+        }
         NSGraphicsContext.restoreGraphicsState()
+    }
+
+    /// "3 min ago" under the left edge and "now" under the right.
+    private func drawAxis() {
+        let attributes = { (alignment: NSTextAlignment) -> [NSAttributedString.Key: Any] in
+            let style = NSMutableParagraphStyle()
+            style.alignment = alignment
+            return [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: style]
+        }
+        let span = (history?.capacity ?? 180) / 60
+        let row = NSRect(x: 2, y: 0, width: bounds.width - 4, height: axisHeight - 2)
+        NSAttributedString(string: "\(span) min ago", attributes: attributes(.left)).draw(with: row)
+        NSAttributedString(string: "now", attributes: attributes(.right)).draw(with: row)
     }
 }
 
