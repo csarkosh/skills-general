@@ -113,13 +113,16 @@ final class Entry {
 }
 
 /// The startup disk's APFS volumes, by role, in the order the panel lists them.
-let spaceRoles: [(title: String, roles: [String])] = [
-    ("macOS system", ["System"]),
-    ("update/boot", ["Preboot", "Update"]),
-    ("recovery", ["Recovery"]),
-    ("swap", ["VM"]),
-    ("my apps / files", ["Data"]),
+/// Colours follow Stats' RAM panel: blue for what you put there (as its App),
+/// orange for macOS (as Wired), pink for swap (as Compressed), grey for free.
+let spaceRoles: [(title: String, roles: [String], color: NSColor)] = [
+    ("macOS system", ["System"], .systemOrange),
+    ("update/boot", ["Preboot", "Update"], .systemYellow),
+    ("recovery", ["Recovery"], .systemPurple),
+    ("swap", ["VM"], .systemPink),
+    ("my apps / files", ["Data"], .systemBlue),
 ]
+let freeColor = NSColor.lightGray
 
 func runTool(_ path: String, _ arguments: [String]) -> Data? {
     let process = Process()
@@ -139,20 +142,38 @@ func plist(_ data: Data?) -> [String: Any]? {
     return (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
 }
 
-/// The space each role uses on the startup disk's APFS container, as diskutil
-/// reports it. Reads no folders and needs no administrator rights.
-func volumeSpaces() -> [(title: String, bytes: Int64)] {
+/// The space each role uses on the startup disk's APFS container, and the
+/// container's size and free space, as diskutil reports them. Reads no folders
+/// and needs no administrator rights.
+func containerSpaces() -> (spaces: [(title: String, bytes: Int64)], total: Int64, free: Int64)? {
     guard let info = plist(runTool("/usr/sbin/diskutil", ["info", "-plist", "/"])),
-          let container = info["APFSContainerReference"] as? String,
-          let list = plist(runTool("/usr/sbin/diskutil", ["apfs", "list", "-plist", container])),
-          let volumes = (list["Containers"] as? [[String: Any]])?.first?["Volumes"] as? [[String: Any]]
-    else { return [] }
-    return spaceRoles.map { space in
+          let reference = info["APFSContainerReference"] as? String,
+          let list = plist(runTool("/usr/sbin/diskutil", ["apfs", "list", "-plist", reference])),
+          let container = (list["Containers"] as? [[String: Any]])?.first,
+          let volumes = container["Volumes"] as? [[String: Any]]
+    else { return nil }
+    let spaces = spaceRoles.map { space in
         let bytes = volumes
             .filter { ($0["Roles"] as? [String] ?? []).contains(where: space.roles.contains) }
             .reduce(Int64(0)) { $0 + (($1["CapacityInUse"] as? NSNumber)?.int64Value ?? 0) }
         return (space.title, bytes)
     }
+    let number = { (key: String) in (container[key] as? NSNumber)?.int64Value ?? 0 }
+    return (spaces, number("CapacityCeiling"), number("CapacityFree"))
+}
+
+func volumeSpaces() -> [(title: String, bytes: Int64)] {
+    containerSpaces()?.spaces ?? []
+}
+
+/// Space macOS can free on its own (caches, iCloud copies, snapshots). The menu
+/// bar, like Finder, counts it as free; the panel's volumes count it as used.
+func purgeableBytes() -> Int64 {
+    guard let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [
+        .volumeAvailableCapacityKey, .volumeAvailableCapacityForImportantUsageKey,
+    ]), let plain = values.volumeAvailableCapacity, let important = values.volumeAvailableCapacityForImportantUsage
+    else { return 0 }
+    return max(0, important - Int64(plain))
 }
 
 // MARK: - Folders, without opening private ones
@@ -310,12 +331,13 @@ func separatorView(_ title: String) -> NSView {
     return view
 }
 
-/// A label on the left in secondary text and a value on the right, like Stats' rows.
+/// A label on the left in secondary text and a value on the right, like Stats' rows;
+/// with a colour, a 10-point rounded square before the label, as in its RAM panel.
 final class PanelRow: NSView {
     let label = NSTextField(labelWithString: "")
     let value = NSTextField(labelWithString: "")
 
-    init(_ title: String) {
+    init(_ title: String, color: NSColor? = nil) {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         label.stringValue = title
@@ -327,10 +349,24 @@ final class PanelRow: NSView {
             field.translatesAutoresizingMaskIntoConstraints = false
             addSubview(field)
         }
+        if let color {
+            let block = NSView()
+            block.wantsLayer = true
+            block.layer?.backgroundColor = color.cgColor
+            block.layer?.cornerRadius = 3
+            block.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(block)
+            NSLayoutConstraint.activate([
+                block.widthAnchor.constraint(equalToConstant: 10),
+                block.heightAnchor.constraint(equalToConstant: 10),
+                block.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+                block.centerYAnchor.constraint(equalTo: centerYAnchor),
+            ])
+        }
         NSLayoutConstraint.activate([
             heightAnchor.constraint(equalToConstant: Panel.row),
             widthAnchor.constraint(equalToConstant: Panel.width),
-            label.leadingAnchor.constraint(equalTo: leadingAnchor),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: color == nil ? 0 : 18),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
             value.trailingAnchor.constraint(equalTo: trailingAnchor),
             value.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -341,11 +377,48 @@ final class PanelRow: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
+/// A line bar split into coloured parts, drawn like Stats' horizontal bar chart: 10
+/// points high with corners rounded at 3, the rest of the line in faint grey.
+final class SpaceBar: NSView {
+    var parts: [(fraction: Double, color: NSColor)] = [] { didSet { needsDisplay = true } }
+
+    init() {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: 14),
+            widthAnchor.constraint(equalToConstant: Panel.width),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let bar = NSRect(x: 0, y: (bounds.height - 10) / 2, width: bounds.width, height: 10)
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(roundedRect: bar, xRadius: 3, yRadius: 3).addClip()
+        NSColor.lightGray.withAlphaComponent(0.25).setFill()
+        bar.fill()
+        var x = bar.minX
+        for part in parts {
+            let width = bar.width * CGFloat(max(0, part.fraction))
+            part.color.setFill()
+            NSRect(x: x, y: bar.minY, width: width, height: bar.height).fill()
+            x += width
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
+}
+
 final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate {
     let outline = NSOutlineView()
     private let status = NSTextField(wrappingLabelWithString: "")
     private let spinner = NSProgressIndicator()
     private var spaceRows: [PanelRow] = []
+    private let usedRow = PanelRow("Used:")
+    private let bar = SpaceBar()
+    private let freeRow = PanelRow("Free:", color: freeColor.withAlphaComponent(0.5))
+    private let purgeableRow = PanelRow("Purgeable:")
     private var folders: [Entry] = []
     private(set) var scanning = false
     private var measuredAt: Date?
@@ -393,13 +466,21 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         body.alignment = .leading
         body.spacing = 0
         body.translatesAutoresizingMaskIntoConstraints = false
+        // Laid out like Stats' RAM details: Used, the bar, a coloured row per part,
+        // Free, then the one figure the bar does not show.
         body.addArrangedSubview(separatorView("Spaces"))
+        body.addArrangedSubview(usedRow)
+        body.addArrangedSubview(bar)
         for space in spaceRoles {
-            let row = PanelRow(space.title)
-            row.value.stringValue = "…"
+            let row = PanelRow(space.title + ":", color: space.color)
             spaceRows.append(row)
             body.addArrangedSubview(row)
         }
+        body.addArrangedSubview(freeRow)
+        body.addArrangedSubview(purgeableRow)
+        purgeableRow.toolTip = "Space macOS frees on its own when it needs it: caches, iCloud copies, snapshots. "
+            + "Counted as used here and as free in the menu bar, as Finder does."
+        for row in spaceRows + [usedRow, freeRow, purgeableRow] { row.value.stringValue = "…" }
         body.addArrangedSubview(separatorView("My apps / files"))
 
         // The name column takes whatever the fixed size column leaves.
@@ -506,9 +587,16 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
 
     func refreshSpaces() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let measured = volumeSpaces()
+            guard let disk = containerSpaces(), disk.total > 0 else { return }
+            let purgeable = purgeableBytes()
             DispatchQueue.main.async {
-                for (row, space) in zip(self.spaceRows, measured) { row.value.stringValue = formatSize(space.bytes) }
+                for (row, space) in zip(self.spaceRows, disk.spaces) { row.value.stringValue = formatSize(space.bytes) }
+                self.usedRow.value.stringValue = formatSize(disk.total - disk.free)
+                self.freeRow.value.stringValue = formatSize(disk.free)
+                self.purgeableRow.value.stringValue = formatSize(purgeable)
+                self.bar.parts = zip(disk.spaces, spaceRoles).map { space, role in
+                    (Double(space.bytes) / Double(disk.total), role.color)
+                }
             }
         }
     }

@@ -17,9 +17,11 @@ updates every second, like Stats' CPU and GPU, for about 0.1% of one core: it re
 space each second and the purgeable-aware figure (what Stats and Finder show) every 30 seconds. Stats cannot draw it: its Disk text widget is a single 12pt line with no label, and its
 two-line "memory" widget shows free over used (people misread it as used over total).
 
-Clicking Disk drops down a **Disk panel**, styled like Stats' panels, listing where the space
-goes in this order: macOS system, update/boot, recovery, swap, and my apps / files, the last broken
-down into folders three levels deep (100 MB and over, biggest first; an app is one row). It never
+Clicking Disk drops down a **Disk panel**, styled like Stats' panels. Its Spaces section is laid
+out like Stats' RAM details: Used, a line bar split by colour, then a coloured row for each of macOS
+system (orange), update/boot (yellow), recovery (purple), swap (pink) and my apps / files (blue),
+then Free (grey) and Purgeable. Below that, my apps / files is broken down into folders three
+levels deep (100 MB and over, biggest first; an app is one row). It never
 opens private folders, so macOS never asks for access. Right-click for Quit.
 
 Use `scripts/setup.sh` in this skill's directory rather than writing your own: it holds the
@@ -87,7 +89,8 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 ## The Disk panel
 
 The five spaces are the startup disk's APFS volumes by role, from `diskutil apfs list`: System,
-Preboot plus Update, Recovery, VM and Data. The folders are measured on the Data volume
+Preboot plus Update, Recovery, VM and Data; Used and Free are the container's. Purgeable is space
+macOS frees on its own: the panel's volumes count it as used, the menu bar (like Finder) as free. The folders are measured on the Data volume
 (`/System/Volumes/Data`), counting allocated blocks like `du -x`; it takes about a minute, so the
 panel reuses a measurement for 10 minutes. The header's arrow measures again, its drive icon opens
 Storage settings, and double-clicking a folder shows it in Finder.
