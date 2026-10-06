@@ -483,6 +483,22 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         for row in spaceRows + [usedRow, freeRow, purgeableRow] { row.value.stringValue = "…" }
         body.addArrangedSubview(separatorView("My apps / files"))
 
+        // The measuring note sits under its section's caption, above the folders.
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isDisplayedWhenStopped = false
+        status.font = .systemFont(ofSize: 10)
+        status.textColor = .tertiaryLabelColor
+        status.preferredMaxLayoutWidth = Panel.width - 24
+        status.toolTip = "Private folders (Desktop, Documents, Downloads, Music, Movies, other apps' data, Mail, "
+            + "Messages, Photos) are never opened, so macOS never asks for access to them. A folder holding one "
+            + "shows ≥, at least its size. Folder sizes count a cloned file in full, so they can add up to more "
+            + "than the volume. Double-click a folder to show it in Finder, whose Get Info shows a private folder's size."
+        let note = NSStackView(views: [spinner, status])
+        note.alignment = .top
+        note.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 6, right: 0)
+        body.addArrangedSubview(note)
+
         // The name column takes whatever the fixed size column leaves.
         let name = NSTableColumn(identifier: .init("name"))
         name.width = Panel.width - 90
@@ -514,21 +530,6 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         scroll.translatesAutoresizingMaskIntoConstraints = false
         body.addArrangedSubview(scroll)
 
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.isDisplayedWhenStopped = false
-        status.font = .systemFont(ofSize: 10)
-        status.textColor = .tertiaryLabelColor
-        status.preferredMaxLayoutWidth = Panel.width - 24
-        status.toolTip = "Private folders (Desktop, Documents, Downloads, Music, Movies, other apps' data, Mail, "
-            + "Messages, Photos) are never opened, so macOS never asks for access to them. A folder holding one "
-            + "shows ≥, at least its size. Folder sizes count a cloned file in full, so they can add up to more "
-            + "than the volume. Double-click a folder to show it in Finder, whose Get Info shows a private folder's size."
-        let footer = NSStackView(views: [spinner, status])
-        footer.alignment = .top
-        footer.edgeInsets = NSEdgeInsets(top: 6, left: 0, bottom: 0, right: 0)
-        body.addArrangedSubview(footer)
-
         background.addSubview(header)
         background.addSubview(body)
         NSLayoutConstraint.activate([
@@ -542,7 +543,7 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
             body.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -Panel.margin),
             scroll.widthAnchor.constraint(equalToConstant: Panel.width),
             scroll.heightAnchor.constraint(equalToConstant: Panel.foldersHeight),
-            footer.widthAnchor.constraint(equalToConstant: Panel.width),
+            note.widthAnchor.constraint(equalToConstant: Panel.width),
         ])
         updateStatus()
     }
@@ -626,6 +627,8 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
     }
 
     private func updateStatus() {
+        // A hidden spinner leaves the stack, so the note lines up with the folders.
+        spinner.isHidden = !scanning
         let privacy = "Private folders are never opened; ≥ means at least."
         if scanning {
             status.stringValue = "Measuring folders, about a minute… " + privacy
