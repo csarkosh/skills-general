@@ -119,7 +119,7 @@ if [ -d /Applications/zoom.us.app ] || [ -d "$HOME/Applications/zoom.us.app" ]; 
 fi
 
 # 4. DiskMenu: build it into ~/Applications.
-say "Building DiskMenu..."
+say "Building DiskMenu if its source changed..."
 stop_app DiskMenu
 mkdir -p "$APP/Contents/MacOS"
 cat > "$APP/Contents/Info.plist" <<'EOF'
@@ -137,8 +137,18 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 </dict>
 </plist>
 EOF
-xcrun swiftc -O "$DIR/diskmenu.swift" -o "$APP/Contents/MacOS/DiskMenu"
-codesign --force --sign - "$APP" 2>/dev/null
+# Rebuild only when the source changed: a rebuild gives the app a new signature, and
+# macOS then asks again for the folder access the Disk window's measuring needs.
+SOURCE_HASH="$(shasum -a 256 "$DIR/diskmenu.swift" | cut -d' ' -f1)"
+BUILT_HASH="$APP/Contents/Resources/source.sha256"
+if [ -x "$APP/Contents/MacOS/DiskMenu" ] && [ "$(cat "$BUILT_HASH" 2>/dev/null)" = "$SOURCE_HASH" ]; then
+  say "DiskMenu is up to date."
+else
+  xcrun swiftc -O "$DIR/diskmenu.swift" -o "$APP/Contents/MacOS/DiskMenu"
+  mkdir -p "$APP/Contents/Resources"
+  printf '%s\n' "$SOURCE_HASH" > "$BUILT_HASH"
+  codesign --force --sign - "$APP" 2>/dev/null
+fi
 
 # 5. Start both now and at every login. The Stats agent waits, so that Stats' own
 # "Start at login", if it is on, starts it first.

@@ -29,7 +29,7 @@ public, so everything in it is public too.
 | `general` | `linkedin` | Does LinkedIn work quietly in the user's signed-in browser: profile audit and edits, messages, invitations, notifications, and settings that cut unwanted contact and emails. Shared safety rules in `SKILL.md`, one reference file per task. Needs browser tools. |
 | `general` | `recruiter-replies` | Finds recruiter messages on LinkedIn and in Gmail, drafts replies from the user's private preferences file, and sends only the replies the user approves. Needs browser and Gmail tools. |
 | `general` | `call-recorder` | Records a call on macOS as two tracks (far side via BlackHole, mic) and transcribes it locally with mlx-whisper into speaker-labelled turns; also transcribes a single voice memo. Needs Python, `mlx-whisper`, ffmpeg and BlackHole on Apple Silicon. |
-| `general` | `menubar-stats` | Sets up a Mac's menu bar with CPU, GPU, RAM, temperatures and Disk used/total left-most in that order (the Stats app plus DiskMenu, a small Swift item the skill builds), keeps other apps' icons out of the group, and checks the order without Screen Recording permission. Needs Homebrew and the Xcode Command Line Tools. |
+| `general` | `menubar-stats` | Sets up a Mac's menu bar with CPU, GPU, RAM, temperatures and Disk used/total left-most in that order (the Stats app plus DiskMenu, a small Swift item the skill builds, whose window shows where the disk's space goes), keeps other apps' icons out of the group, and checks the order without Screen Recording permission. Needs Homebrew and the Xcode Command Line Tools. |
 | `general-claude` | `doc-artifact` | Publishes a markdown doc as a claude.ai Artifact in a Nord house style. |
 
 ## Workflows

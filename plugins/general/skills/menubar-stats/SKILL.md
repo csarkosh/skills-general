@@ -16,6 +16,10 @@ The Disk item is **DiskMenu**, about 100 lines of Swift in `scripts/diskmenu.swi
 Mac. Stats cannot draw it: its Disk text widget is a single 12pt line with no label, and its
 two-line "memory" widget shows free over used (people misread it as used over total).
 
+Clicking Disk opens a **Disk window** listing where the space goes, in this order: macOS
+system, update/boot, recovery, swap, and my apps / files, the last broken down into folders
+three levels deep (100 MB and over, biggest first; an app is one row). Right-click for Quit.
+
 Use `scripts/setup.sh` in this skill's directory rather than writing your own: it holds the
 setting names, the order and the traps below. Change the layout by editing the script.
 
@@ -77,6 +81,23 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
   app is in full screen.
 - `~/Applications/DiskMenu.app/Contents/MacOS/DiskMenu --render /tmp/diskmenu.png` draws the
   Disk item to a PNG; open the image to look at it.
+
+## The Disk window
+
+The five spaces are the startup disk's APFS volumes by role, from `diskutil apfs list`:
+System, Preboot plus Update, Recovery, VM and Data. The folders come from `du -x -d 3` on the
+Data volume (`/System/Volumes/Data`), which takes about a minute, so the window reuses a
+measurement for 10 minutes; Refresh measures again, and double-clicking a folder shows it in
+Finder. Folder sizes count a cloned file in full, so they can add up to more than the volume.
+
+The first measurement may make macOS ask whether DiskMenu can open the Desktop, Documents and
+Downloads folders and other apps' data; the user allows them, or adds
+`~/Applications/DiskMenu.app` under System Settings › Privacy & Security › Full Disk Access.
+Without access those folders count smaller. `setup.sh` rebuilds DiskMenu only when its source
+changed, because a rebuild resets those permissions.
+
+From a terminal, `DiskMenu --spaces` prints the five spaces and `DiskMenu --report` prints the
+whole list (add a folder to list only it, and `--min-mb N` to change the cut-off).
 
 ## Common mistakes
 
