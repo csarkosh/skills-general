@@ -101,12 +101,14 @@ Stats' RAM panel without its gauges, in two sections. **Usage** opens with Stats
 chart (the last three minutes, a sample a second), but with a band per part instead of one for
 used: App (blue), Wired (orange) and Compressed (pink) stacked from the bottom and Free (grey) on
 top, in the same colours as the rows; "Free: 2.1 GB (13%)", Free's size and share now, sits at
-the top right against the top edge, and "3 min ago … now" runs under the swap strip. Then
+the top right against the top edge, and "3 min ago … now" runs underneath. Then
 Used with its bar, a row per part and Swap (purple). Swap is disk space used as overflow,
-outside the physical memory the bands and the bar divide up, so it has its own purple strip
-under the memory chart, on the same time axis and its own scale: swap used out of what macOS has
-set aside for it ("Swap: 6.17 GB of 7 GB"). A line across the bands read as if the bands under
-it were swap. The
+outside the physical memory the bands and the bar divide up, so it stays out of the chart (a
+line across the bands read as if the bands under it were swap, and a band on top squeezed
+them). Its row reads `6.21 GB (39% of RAM)` with a small purple graph of the last three
+minutes, both measured against the Mac's memory: swap has no fixed maximum (macOS adds 1 GB
+swap files as it needs them while the disk has room), so the useful ratio is how far memory
+demand has spilled past the memory there is. The
 figures are Stats': used is active, inactive, speculative, wired and compressed pages less
 purgeable and file-backed ones, App is used less Wired and Compressed, Free is the rest, all in
 the binary units macOS uses for memory. **Top processes** lists the eight processes using the
