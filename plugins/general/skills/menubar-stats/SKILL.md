@@ -100,7 +100,7 @@ change the cut-off), and `--show-panel temp|disk[,…]` starts it and opens thos
 Stats' RAM panel without its gauges, in two sections. **Usage** opens with Stats' usage history
 chart (the last three minutes, a sample a second), but with a band per part instead of one for
 used: App (blue), Wired (orange) and Compressed (pink) stacked from the bottom and Free (grey) on
-top, in the same colours as the rows; Free's size now sits at the top right, 1 point below
+top, in the same colours as the rows; Free's size now sits at the top right, against
 the top edge, and "3 min ago … now" runs underneath. Then
 Used with its bar, a row per part and Swap. Swap has no colour: it is disk space used as
 overflow, outside the physical memory the chart and the bar divide up. The
