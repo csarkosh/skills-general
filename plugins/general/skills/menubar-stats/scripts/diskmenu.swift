@@ -14,6 +14,7 @@
 //   DiskMenu --show-panel                  # runs, with the panel open
 //   DiskMenu --render out.png              # draws the item to a PNG and exits
 //   DiskMenu --spaces                      # prints the five spaces and exits
+//   DiskMenu --legend                      # prints the Spaces rows with their colours
 //   DiskMenu --report [folder] [--min-mb N]
 //                                          # prints the panel's list and exits; with a
 //                                          # folder, only that folder's tree
@@ -115,14 +116,25 @@ final class Entry {
 /// The startup disk's APFS volumes, by role, in the order the panel lists them.
 /// Colours follow Stats' RAM panel: blue for what you put there (as its App),
 /// orange for macOS (as Wired), pink for swap (as Compressed), grey for free.
-let spaceRoles: [(title: String, roles: [String], color: NSColor)] = [
-    ("macOS system", ["System"], .systemOrange),
-    ("update/boot", ["Preboot", "Update"], .systemYellow),
-    ("recovery", ["Recovery"], .systemPurple),
-    ("swap", ["VM"], .systemPink),
-    ("my apps / files", ["Data"], .systemBlue),
+let spaceRoles: [(title: String, roles: [String], color: NSColor, colorName: String)] = [
+    ("macOS system", ["System"], .systemOrange, "orange"),
+    ("update/boot", ["Preboot", "Update"], .systemYellow, "yellow"),
+    ("recovery", ["Recovery"], .systemPurple, "purple"),
+    ("swap", ["VM"], .systemPink, "pink"),
+    ("my apps / files", ["Data"], .systemBlue, "blue"),
 ]
-let freeColor = NSColor.lightGray
+
+/// Every row of the panel's Spaces section under Used, in order, with its colour.
+/// The rows and the bar are both built from this one list, so no row can appear
+/// without a colour, and the rows add up to Used. After the volumes: other (APFS's
+/// own bookkeeping and any volume not listed), Purgeable (the part of my apps /
+/// files macOS frees on its own, shown next to free space) and Free.
+let spaceLegend: [(title: String, color: NSColor, colorName: String)] =
+    spaceRoles.map { ($0.title, $0.color, $0.colorName) } + [
+        ("other", .systemBrown, "brown"),
+        ("Purgeable", .systemTeal, "teal"),
+        ("Free", NSColor.lightGray.withAlphaComponent(0.5), "light grey"),
+    ]
 
 func runTool(_ path: String, _ arguments: [String]) -> Data? {
     let process = Process()
@@ -412,13 +424,15 @@ final class SpaceBar: NSView {
 
 final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate {
     let outline = NSOutlineView()
-    private let status = NSTextField(wrappingLabelWithString: "")
+    /// Shown over the empty folder list while measuring, a third of the way down.
+    private let measuring = NSTextField(wrappingLabelWithString: "")
     private let spinner = NSProgressIndicator()
-    private var spaceRows: [PanelRow] = []
+    private let measuringNote = NSStackView()
+    /// Shown under the folder list once it is measured.
+    private let status = NSTextField(wrappingLabelWithString: "")
     private let usedRow = PanelRow("Used:")
     private let bar = SpaceBar()
-    private let freeRow = PanelRow("Free:", color: freeColor.withAlphaComponent(0.5))
-    private let purgeableRow = PanelRow("Purgeable:")
+    private let spaceRows: [PanelRow] = spaceLegend.map { PanelRow($0.title + ":", color: $0.color) }
     private var folders: [Entry] = []
     private(set) var scanning = false
     private var measuredAt: Date?
@@ -466,38 +480,20 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         body.alignment = .leading
         body.spacing = 0
         body.translatesAutoresizingMaskIntoConstraints = false
-        // Laid out like Stats' RAM details: Used, the bar, a coloured row per part,
-        // Free, then the one figure the bar does not show.
+        // Laid out like Stats' RAM details: Used, the bar, then a coloured row per
+        // part of the bar, in the bar's order.
         body.addArrangedSubview(separatorView("Spaces"))
         body.addArrangedSubview(usedRow)
         body.addArrangedSubview(bar)
-        for space in spaceRoles {
-            let row = PanelRow(space.title + ":", color: space.color)
-            spaceRows.append(row)
-            body.addArrangedSubview(row)
-        }
-        body.addArrangedSubview(freeRow)
-        body.addArrangedSubview(purgeableRow)
-        purgeableRow.toolTip = "Space macOS frees on its own when it needs it: caches, iCloud copies, snapshots. "
-            + "Counted as used here and as free in the menu bar, as Finder does."
-        for row in spaceRows + [usedRow, freeRow, purgeableRow] { row.value.stringValue = "…" }
+        for row in spaceRows { body.addArrangedSubview(row) }
+        let tips = [
+            "other": "Space APFS keeps for its own bookkeeping, and any volume not listed above.",
+            "Purgeable": "Part of my apps / files that macOS frees on its own when it needs room: caches, "
+                + "iCloud copies, snapshots. Counted as used here and as free in the menu bar, as Finder does.",
+        ]
+        for (row, part) in zip(spaceRows, spaceLegend) { row.toolTip = tips[part.title] }
+        for row in spaceRows + [usedRow] { row.value.stringValue = "…" }
         body.addArrangedSubview(separatorView("My apps / files"))
-
-        // The measuring note sits under its section's caption, above the folders.
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.isDisplayedWhenStopped = false
-        status.font = .systemFont(ofSize: 10)
-        status.textColor = .tertiaryLabelColor
-        status.preferredMaxLayoutWidth = Panel.width - 24
-        status.toolTip = "Private folders (Desktop, Documents, Downloads, Music, Movies, other apps' data, Mail, "
-            + "Messages, Photos) are never opened, so macOS never asks for access to them. A folder holding one "
-            + "shows ≥, at least its size. Folder sizes count a cloned file in full, so they can add up to more "
-            + "than the volume. Double-click a folder to show it in Finder, whose Get Info shows a private folder's size."
-        let note = NSStackView(views: [spinner, status])
-        note.alignment = .top
-        note.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 6, right: 0)
-        body.addArrangedSubview(note)
 
         // The name column takes whatever the fixed size column leaves.
         let name = NSTableColumn(identifier: .init("name"))
@@ -528,7 +524,32 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        body.addArrangedSubview(scroll)
+
+        // While measuring, the list is empty and the measuring note sits a third
+        // of the way down it; once measured, the note under the list takes over.
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        for text in [measuring, status] {
+            text.font = .systemFont(ofSize: 10)
+            text.textColor = .tertiaryLabelColor
+            text.toolTip = "Private folders (Desktop, Documents, Downloads, Music, Movies, other apps' data, Mail, "
+                + "Messages, Photos) are never opened, so macOS never asks for access to them. A folder holding one "
+                + "shows ≥, at least its size. Folder sizes count a cloned file in full, so they can add up to more "
+                + "than the volume. Double-click a folder to show it in Finder, whose Get Info shows a private folder's size."
+        }
+        measuring.preferredMaxLayoutWidth = Panel.width - 24
+        status.preferredMaxLayoutWidth = Panel.width
+        measuringNote.setViews([spinner, measuring], in: .leading)
+        measuringNote.alignment = .top
+        measuringNote.translatesAutoresizingMaskIntoConstraints = false
+        let folderArea = NSView()
+        folderArea.translatesAutoresizingMaskIntoConstraints = false
+        folderArea.addSubview(scroll)
+        folderArea.addSubview(measuringNote)
+        body.addArrangedSubview(folderArea)
+        status.translatesAutoresizingMaskIntoConstraints = false
+        body.setCustomSpacing(6, after: folderArea)
+        body.addArrangedSubview(status)
 
         background.addSubview(header)
         background.addSubview(body)
@@ -541,9 +562,18 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
             body.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: Panel.margin),
             body.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -Panel.margin),
             body.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -Panel.margin),
-            scroll.widthAnchor.constraint(equalToConstant: Panel.width),
-            scroll.heightAnchor.constraint(equalToConstant: Panel.foldersHeight),
-            note.widthAnchor.constraint(equalToConstant: Panel.width),
+            folderArea.widthAnchor.constraint(equalToConstant: Panel.width),
+            folderArea.heightAnchor.constraint(equalToConstant: Panel.foldersHeight),
+            scroll.leadingAnchor.constraint(equalTo: folderArea.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: folderArea.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: folderArea.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: folderArea.bottomAnchor),
+            measuringNote.leadingAnchor.constraint(equalTo: folderArea.leadingAnchor),
+            measuringNote.trailingAnchor.constraint(equalTo: folderArea.trailingAnchor),
+            measuringNote.topAnchor.constraint(equalTo: folderArea.topAnchor, constant: Panel.foldersHeight / 3),
+            // Room for two lines, kept while measuring, so the panel does not jump.
+            status.widthAnchor.constraint(equalToConstant: Panel.width),
+            status.heightAnchor.constraint(equalToConstant: 28),
         ])
         updateStatus()
     }
@@ -591,12 +621,21 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
             guard let disk = containerSpaces(), disk.total > 0 else { return }
             let purgeable = purgeableBytes()
             DispatchQueue.main.async {
-                for (row, space) in zip(self.spaceRows, disk.spaces) { row.value.stringValue = formatSize(space.bytes) }
-                self.usedRow.value.stringValue = formatSize(disk.total - disk.free)
-                self.freeRow.value.stringValue = formatSize(disk.free)
-                self.purgeableRow.value.stringValue = formatSize(purgeable)
-                self.bar.parts = zip(disk.spaces, spaceRoles).map { space, role in
-                    (Double(space.bytes) / Double(disk.total), role.color)
+                let used = disk.total - disk.free
+                let volumes = disk.spaces.map(\.bytes)
+                let other = max(0, used - volumes.reduce(0, +))
+                // One figure per legend entry, in its order.
+                let rows = volumes + [other, purgeable, disk.free]
+                for (row, bytes) in zip(self.spaceRows, rows) { row.value.stringValue = formatSize(bytes) }
+                self.usedRow.value.stringValue = formatSize(used)
+                // The bar shows purgeable space out of my apps / files, next to free;
+                // free is the rest of the line.
+                var pieces = rows
+                if let data = spaceRoles.firstIndex(where: { $0.roles.contains("Data") }) {
+                    pieces[data] = max(0, pieces[data] - purgeable)
+                }
+                self.bar.parts = zip(pieces, spaceLegend).dropLast().map { bytes, part in
+                    (Double(bytes) / Double(disk.total), part.color)
                 }
             }
         }
@@ -605,6 +644,8 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
     func measureFolders() {
         guard !scanning else { return }
         scanning = true
+        folders = []
+        outline.reloadData()
         spinner.startAnimation(nil)
         updateStatus()
         DispatchQueue.global(qos: .utility).async {
@@ -627,11 +668,11 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
     }
 
     private func updateStatus() {
-        // A hidden spinner leaves the stack, so the note lines up with the folders.
-        spinner.isHidden = !scanning
-        let privacy = "Private folders are never opened; ≥ means at least."
+        let privacy = "Private folders are never opened; ≥\u{00A0}means at least."
+        measuringNote.isHidden = !scanning
+        measuring.stringValue = "Measuring folders, about a minute… " + privacy
         if scanning {
-            status.stringValue = "Measuring folders, about a minute… " + privacy
+            status.stringValue = ""
         } else if let measuredAt {
             let time = DateFormatter.localizedString(from: measuredAt, dateStyle: .none, timeStyle: .short)
             status.stringValue = "Measured \(time). " + privacy
@@ -835,6 +876,10 @@ if arguments.contains("--render") {
         exit(2)
     }
     exit(render(to: path))
+}
+if arguments.contains("--legend") {
+    for part in spaceLegend { print(part.title + "\t" + part.colorName) }
+    exit(0)
 }
 if arguments.contains("--spaces") {
     let spaces = volumeSpaces()

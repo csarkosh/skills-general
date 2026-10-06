@@ -18,9 +18,11 @@ space each second and the purgeable-aware figure (what Stats and Finder show) ev
 two-line "memory" widget shows free over used (people misread it as used over total).
 
 Clicking Disk drops down a **Disk panel**, styled like Stats' panels. Its Spaces section is laid
-out like Stats' RAM details: Used, a line bar split by colour, then a coloured row for each of macOS
-system (orange), update/boot (yellow), recovery (purple), swap (pink) and my apps / files (blue),
-then Free (grey) and Purgeable. Below that, my apps / files is broken down into folders three
+out like Stats' RAM details: Used, a line bar split by colour, then a coloured row for each part of
+the bar: macOS system (orange), update/boot (yellow), recovery (purple), swap (pink), my apps / files
+(blue), other (brown: APFS bookkeeping and any extra volume), Purgeable (teal) and Free (grey). The
+rows and the bar come from one list in `scripts/diskmenu.swift`, `spaceLegend`, so every row has a
+colour and the rows add up to Used; `DiskMenu --legend` prints it, and a test checks it. Below that, my apps / files is broken down into folders three
 levels deep (100 MB and over, biggest first; an app is one row). It never
 opens private folders, so macOS never asks for access. Right-click for Quit.
 
@@ -88,7 +90,7 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 
 ## The Disk panel
 
-The five spaces are the startup disk's APFS volumes by role, from `diskutil apfs list`: System,
+The volumes are the startup disk's APFS volumes by role, from `diskutil apfs list`: System,
 Preboot plus Update, Recovery, VM and Data; Used and Free are the container's. Purgeable is space
 macOS frees on its own: the panel's volumes count it as used, the menu bar (like Finder) as free. The folders are measured on the Data volume
 (`/System/Volumes/Data`), counting allocated blocks like `du -x`; it takes about a minute, so the

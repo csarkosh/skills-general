@@ -61,6 +61,13 @@ describe('menubar-stats', () => {
       assert.deepEqual([...readFileSync(png).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], 'writes a PNG');
     });
 
+    it('gives every Spaces row under Used a colour, in the panel\'s order', () => {
+      const rows = runOk(binary, ['--legend']).stdout.trim().split('\n').map((line) => line.split('\t'));
+      assert.deepEqual(rows.map(([title]) => title),
+        ['macOS system', 'update/boot', 'recovery', 'swap', 'my apps / files', 'other', 'Purgeable', 'Free']);
+      for (const [title, color] of rows) assert.ok(color, `${title} has a colour`);
+    });
+
     it('lists the five spaces in the panel\'s order', () => {
       const titles = runOk(binary, ['--spaces']).stdout.trim().split('\n').map((line) => line.split('\t')[0]);
       assert.deepEqual(titles, ['macOS system', 'update/boot', 'recovery', 'swap', 'my apps / files']);
