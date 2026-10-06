@@ -43,7 +43,7 @@ describe('menubar-stats', () => {
       assert.ok(match, `setup.sh saves a position for ${name}`);
       return Number(match[1]);
     };
-    const order = ['CPU_mini', 'GPU_mini', 'MacStatsRAM', 'MacStatsTemp', 'MacStatsDisk', 'Item-0'].map(position);
+    const order = ['CPU_mini', 'MacStatsGPU', 'MacStatsRAM', 'MacStatsTemp', 'MacStatsDisk', 'Item-0'].map(position);
     for (let i = 1; i < order.length; i++) assert.ok(order[i - 1] > order[i], 'a larger number sits further left');
   });
 
@@ -60,6 +60,26 @@ describe('menubar-stats', () => {
     after(() => rmSync(dirname(binary), { recursive: true, force: true }));
 
     const isPng = (path) => assert.deepEqual([...readFileSync(path).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], 'writes a PNG');
+
+    it('renders the GPU item as its utilization', (t) => {
+      const png = join(tempDir(t, 'macstats-png'), 'gpu.png');
+      assert.match(runOk(binary, ['--render', 'gpu', png]).stdout, /^\d+%\n$/);
+      isPng(png);
+    });
+
+    it('reads the GPU: utilization, renderer, tiler, memory, model and the apps using it', () => {
+      const lines = runOk(binary, ['--gpu'], { timeout: 30_000 }).stdout.trim().split('\n');
+      const value = (title) => lines.find((line) => line.startsWith(`${title}\t`))?.split('\t').slice(1);
+      for (const title of ['Utilization', 'Renderer', 'Tiler']) {
+        const percent = Number(value(title)[0].replace('%', ''));
+        assert.ok(percent >= 0 && percent <= 100, `${title} is a percentage`);
+      }
+      const [inUse, allocated] = value('Memory').map(Number);
+      assert.ok(inUse >= 0 && inUse <= allocated, 'GPU memory in use is within what is set aside');
+      assert.ok(value('Model')[0].length > 0, 'names the GPU');
+      const apps = lines.slice(lines.indexOf('Top GPU apps') + 1).map((line) => Number(line.split('\t')[1].replace('%', '')));
+      for (let i = 1; i < apps.length; i++) assert.ok(apps[i - 1] >= apps[i], 'the busiest app first');
+    });
 
     it('renders the RAM item as the share of memory in use', (t) => {
       const png = join(tempDir(t, 'macstats-png'), 'ram.png');

@@ -1,14 +1,16 @@
-// MacStats: menu bar items that sit beside the Stats app's CPU and GPU items, drawn
-// like them: RAM (memory in use, with its history and top processes in its panel),
+// MacStats: menu bar items that sit beside the Stats app's CPU item, drawn like it:
+// GPU (utilization, with gauges, history, details and top GPU apps in its panel),
+// RAM (memory in use, with its history and top processes in its panel),
 // Temp (the hottest part, with every sensor in its panel) and Disk (used/total space,
 // with where it goes in its panel). Each item lives in its own file; MenuKit.swift
 // holds what they share.
 //
 //   swiftc -O *.swift -o MacStats           # setup.sh builds it into MacStats.app
 //   MacStats                                # runs both menu bar items
-//   MacStats --show-panel ram|temp|disk[,…] # runs, opening those panels in turn, as clicks would
-//   MacStats --render ram|temp|disk out.png # draws that menu bar item to a PNG and exits
+//   MacStats --show-panel gpu|ram|temp|disk[,…]  # runs, opening those panels in turn, as clicks would
+//   MacStats --render gpu|ram|temp|disk out.png  # draws that menu bar item to a PNG and exits
 //                                           # (with --alert, Temp as it looks when hot)
+//   MacStats --gpu                          # prints the GPU panel and exits
 //   MacStats --memory                       # prints the RAM panel and exits
 //   MacStats --sensors                      # prints the Temp panel and exits
 //   MacStats --weigh 49.8 53.0 …            # prints those temperatures' hot-weighted value
@@ -21,6 +23,10 @@
 import Cocoa
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var gpu: MenuBarItem!
+    private let gpuSampler = GPUSampler()
+    private let gpuHistory = GPUHistory()
+    private lazy var gpuPanel = GPUPanel(history: gpuHistory, reader: reader)
     private var ram: MenuBarItem!
     private let memoryHistory = MemoryHistory()
     private lazy var ramPanel = RAMPanel(history: memoryHistory)
@@ -33,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        gpu = MenuBarItem(autosaveName: "MacStatsGPU", label: "GPU") { [unowned self] in gpuPanel.toggle(under: $0) }
         ram = MenuBarItem(autosaveName: "MacStatsRAM", label: "RAM") { [unowned self] in ramPanel.toggle(under: $0) }
         temp = MenuBarItem(autosaveName: "MacStatsTemp", label: "Temp") { [unowned self] in tempPanel.toggle(under: $0) }
         disk = MenuBarItem(autosaveName: "MacStatsDisk", label: "Disk") { [unowned self] in diskPanel.toggle(under: $0) }
@@ -43,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // "--show-panel disk,temp" opens each in turn, two seconds apart, as clicks would.
         for (index, which) in (argument(after: "--show-panel") ?? "").split(separator: ",").enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1 + 2 * Double(index)) { [unowned self] in
+                if which == "gpu", let button = gpu.button { gpuPanel.toggle(under: button) }
                 if which == "ram", let button = ram.button { ramPanel.toggle(under: button) }
                 if which == "temp", let button = temp.button { tempPanel.toggle(under: button) }
                 if which == "disk", let button = disk.button { diskPanel.toggle(under: button) }
@@ -51,6 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refresh() {
+        if let sample = gpuSampler.sample() {
+            gpuHistory.add(sample)
+            let gpuText = gpuItemText(sample)
+            gpu.show(gpuText.value, tooltip: gpuText.tooltip)
+            if gpuPanel.isVisible { gpuPanel.update(sample) }
+        }
         if let usage = memoryUsage() {
             memoryHistory.add(usage)
             let ramText = ramItemText(usage)
@@ -80,10 +94,13 @@ func fail(_ message: String) -> Never {
 
 if arguments.contains("--render") {
     guard let index = arguments.firstIndex(of: "--render"), index + 2 < arguments.count else {
-        fail("usage: MacStats --render ram|temp|disk <out.png>")
+        fail("usage: MacStats --render gpu|ram|temp|disk <out.png>")
     }
     let path = arguments[index + 2]
     switch arguments[index + 1] {
+    case "gpu":
+        guard let sample = GPUSampler().sample() else { fail("Could not read the GPU.") }
+        exit(renderMiniView(label: "GPU", value: gpuItemText(sample).value, to: path))
     case "ram":
         guard let usage = memoryUsage() else { fail("Could not read memory use.") }
         exit(renderMiniView(label: "RAM", value: ramItemText(usage).value, to: path))
@@ -93,8 +110,11 @@ if arguments.contains("--render") {
     case "disk":
         guard let text = diskItemText(DiskSampler()) else { fail("Could not read the startup disk's capacity.") }
         exit(renderMiniView(label: "Disk", value: text.value, to: path))
-    default: fail("usage: MacStats --render ram|temp|disk <out.png>")
+    default: fail("usage: MacStats --render gpu|ram|temp|disk <out.png>")
     }
+}
+if arguments.contains("--gpu") {
+    exit(gpuReport())
 }
 if arguments.contains("--memory") {
     exit(memoryReport())

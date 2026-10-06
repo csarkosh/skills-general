@@ -9,9 +9,9 @@ This skill reproduces one layout, left-most in the menu bar and in this order:
 
 | CPU | GPU | RAM | Temp | Disk |
 |---|---|---|---|---|
-| `CPU` over `12%` | `GPU` over `84%` | `RAM` over `89%` (memory in use) | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk` over `215.9/245.1 GB` (used/total) |
+| `CPU` over `12%` | `GPU` over `84%` (utilization) | `RAM` over `89%` (memory in use) | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk` over `215.9/245.1 GB` (used/total) |
 
-CPU and GPU come from **Stats** (free, `brew install --cask stats`). RAM, Temp and Disk come from
+CPU comes from **Stats** (free, `brew install --cask stats`). GPU, RAM, Temp and Disk come from
 **MacStats**, a small Swift app in `scripts/macstats/`, built on the Mac. Stats cannot draw them as
 wanted: its Disk widgets cannot put a label over custom text, its temperature list repeats every
 sensor ("CPU efficiency core 1" to "4", "GPU 1" to "8"), and its RAM history chart shows only used
@@ -23,7 +23,7 @@ permission). Right-click either for Quit.
 
 Each feature is one file, so a later App Store edition can leave one out (the sandbox forbids the
 SMC reads and the disk-wide folder walk): `MenuKit.swift` (the item and the panel's look, shared),
-`RAM.swift`, `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
+`GPU.swift`, `RAM.swift`, `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
 `Battery.swift` (the battery's charge, for Temp's Power section), and `main.swift` (starts both,
 and the command line). `SMC.swift` and `SensorCatalog.swift` are adapted
 from Stats (MIT); its licence is `scripts/macstats/LICENSE-stats.txt`.
@@ -45,14 +45,14 @@ the user must run that command themselves at a real terminal:
 |---|---|---|
 | Homebrew | installs Stats | the official one-liner from brew.sh, which asks for the user's password; its "Next steps" put `brew` on the PATH |
 | Xcode Command Line Tools | `swiftc` builds MacStats | `xcode-select --install`, then click Install (Homebrew's installer usually installs them already) |
-| Stats | CPU, GPU | the script runs `brew install --cask stats` itself |
+| Stats | CPU | the script runs `brew install --cask stats` itself |
 
 Also for the user: on its first launch macOS may ask whether to open Stats, an app downloaded
 from the internet (click Open), and a "Background Items Added" notice for the login agents is
 information only. Install nothing the user did not ask for.
 
-The script stops and restarts Stats and MacStats, writes their settings (Stats' RAM, Sensors and Disk
-modules off), adds login agents `sh.csarko.stats-at-login` and `sh.csarko.macstats`
+The script stops and restarts Stats and MacStats, writes their settings (Stats' GPU, RAM, Sensors and
+Disk modules off), adds login agents `sh.csarko.stats-at-login` and `sh.csarko.macstats`
 (`~/Library/LaunchAgents`), replaces DiskMenu (MacStats' older Disk-only form) if the Mac has it,
 and then prints the menu bar's order. It rebuilds MacStats only when its source changed. It never
 quits other apps. Zoom takes its new place only when it restarts, so ask the user whether a call
@@ -67,8 +67,8 @@ when it starts, so restart the app after writing it.
 
 | Item | Defaults domain | Name | Value |
 |---|---|---|---|
-| CPU, GPU | `eu.exelban.Stats` | `CPU_mini`, `GPU_mini` | 1300, 1250 |
-| RAM, Temp, Disk | `sh.csarko.MacStats` | `MacStatsRAM`, `MacStatsTemp`, `MacStatsDisk` | 1200, 1150, 1100 |
+| CPU | `eu.exelban.Stats` | `CPU_mini` | 1300 |
+| GPU, RAM, Temp, Disk | `sh.csarko.MacStats` | `MacStatsGPU`, `MacStatsRAM`, `MacStatsTemp`, `MacStatsDisk` | 1250, 1200, 1150, 1100 |
 | Zoom | `us.zoom.xos` | `Item-0` | 450 (the script writes it only if Zoom is installed) |
 
 An app that never saved a place lands wherever there is room, often inside the group. To fix
@@ -84,16 +84,29 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 - `swift scripts/menubar-order.swift` prints the status items left to right: x, width, owner,
   name. On macOS 26 every owner is "Control Center" and the names are the ones in the table
   above. The group is unbroken when each x is the previous x plus its width. Without Screen
-  Recording permission the names may be blank; tell the items apart by width (CPU, GPU about 47,
-  RAM about 43, Temp about 45, Disk about 100, Zoom about 32). It prints nothing while an app is in
+  Recording permission the names may be blank; tell the items apart by width (CPU about 47, GPU
+  and RAM about 43, Temp about 45, Disk about 100, Zoom about 32). It prints nothing while an app is in
   full screen.
-- `MacStats --render ram|temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
+- `MacStats --render gpu|ram|temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
   draws that item to a PNG; open the image to look at it.
 
-From a terminal, `MacStats --memory` prints the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
+From a terminal, `MacStats --gpu` prints the GPU panel, `--memory` the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
 temperatures' weighted value, `--spaces` the disk's five volumes, `--legend` the Disk panel's
 Spaces rows in order, `--report` its folders (add a folder to list only it, and `--min-mb N` to
 change the cut-off), and `--show-panel temp|disk[,…]` starts it and opens those panels in turn, as clicks would.
+
+## The GPU panel
+
+Two gauges like Temp's: utilization on Stats' own zones (normal below 60%, busy below 80%, heavy
+from 80%) and the GPU's temperature on the chip's limits. **Usage**: a three-minute chart with
+utilization as a blue area and Renderer and Tiler as orange and pink lines (on Apple silicon the
+three move together), then those three rows in the same colours, ML engine, FPS and Memory
+(in use out of what the GPU has set aside). **Details**: model and cores. **Top GPU apps**: each
+app's share of GPU time over the last two seconds, as Activity Monitor's "% GPU" counts it,
+from the GPU time macOS keeps per app in the registry. Utilization, memory, model and cores come
+from the accelerator's registry entry; ML engine (its power against its peak) and FPS (the
+displays' frame swaps) come from IOReport, a private macOS library looked up at run time, as
+Stats reads them.
 
 ## The RAM panel
 
