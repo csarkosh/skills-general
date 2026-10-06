@@ -212,12 +212,21 @@ final class GPUAppSampler {
         return gpuTime.compactMap { pid, time -> GPUApp? in
             let share = (time - (last.gpuTime[pid] ?? time)) / elapsed
             guard share > 0.0005 else { return nil }
-            return GPUApp(pid: pid, name: NSRunningApplication(processIdentifier: pid)?.localizedName ?? names[pid] ?? "pid \(pid)",
+            return GPUApp(pid: pid, name: NSRunningApplication(processIdentifier: pid)?.localizedName
+                              ?? executableName(pid) ?? names[pid] ?? "pid \(pid)",
                           share: min(1, share))
         }
         .sorted { $0.share > $1.share }
         .prefix(count).map { $0 }
     }
+}
+
+/// A process's executable name in full: the registry cuts names to 16 characters
+/// ("Google Chrome He"), and helpers have no app to name them.
+private func executableName(_ pid: Int32) -> String? {
+    var path = [CChar](repeating: 0, count: 4096)
+    guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { return nil }
+    return URL(fileURLWithPath: String(cString: path)).lastPathComponent
 }
 
 // MARK: - The panel
