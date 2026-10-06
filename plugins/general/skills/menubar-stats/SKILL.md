@@ -9,7 +9,7 @@ This skill reproduces one layout, left-most in the menu bar and in this order:
 
 | CPU | GPU | RAM | Temp | Disk |
 |---|---|---|---|---|
-| `CPU` over `12%` | `GPU` over `84%` | `RAM` over `89%` | `Temp` over `125°/111°` (CPU/GPU) | `Disk` over `215.9/245.1 GB` (used/total) |
+| `CPU` over `12%` | `GPU` over `84%` | `RAM` over `89%` | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk` over `215.9/245.1 GB` (used/total) |
 
 CPU, GPU and RAM come from **Stats** (free, `brew install --cask stats`). Temp and Disk come from
 **MacStats**, a small Swift app in `scripts/macstats/`, built on the Mac. Stats cannot draw them: its
@@ -83,7 +83,7 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
   name. On macOS 26 every owner is "Control Center" and the names are the ones in the table
   above. The group is unbroken when each x is the previous x plus its width. Without Screen
   Recording permission the names may be blank; tell the items apart by width (CPU, GPU, RAM
-  about 47, Temp about 70, Disk about 100, Zoom about 32). It prints nothing while an app is in
+  about 47, Temp about 45, Disk about 100, Zoom about 32). It prints nothing while an app is in
   full screen.
 - `MacStats --render temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
   draws that item to a PNG; open the image to look at it.
@@ -95,7 +95,16 @@ change the cut-off), and `--show-panel temp|disk` starts it with that panel open
 
 ## The Temp panel
 
-Three sections, each only when the Mac has such sensors: Temperature, Power and Fans. The sensors
+Two gauges on top, drawn like Stats' RAM pressure gauge (three equal green, yellow and red arcs
+and a blue needle, which here moves along its band): the hottest part on that part's own limits
+("Hot · 185°F" over its name), and power use ("Normal · 9 W" over the battery time left at that
+rate, or "on charger"). Power use is Total in watts, in tiers from the Mac's own figures in
+`Temp.swift`: the M4 MacBook Air idles at 0.7–3.6 W (Apple's ENERGY STAR filing), sustains 8–9 W
+on its chip and bursts to 20–23 W, and peaks near 31 W, its 30 W charger's size (Notebookcheck,
+LaptopMedia), so normal is below 10 W, moderate below 20 W and high from 20 W. Other chip classes
+get scaled estimates. `MacStats --power-level <W>` prints a tier.
+
+Then three sections, each only when the Mac has such sensors: Temperature, Power and Fans. The sensors
 are the SMC keys in `SensorCatalog.swift` that this chip answers (generated from Stats' list, so new
 chips arrive with a Stats update).
 
@@ -109,8 +118,8 @@ parts (CPU, GPU, machine-learning engine, memory) yellow from 85 °C and red fro
 60–85 °C under load and throttle from about 90–100 °C); the battery from 35 °C and 40 °C (Apple's
 range is 10–35 °C, and heat above 40 °C wears it); the SSD from 50 °C and 70 °C (flash is rated
 to about 70 °C); anything else from 60 °C and 80 °C. `MacStats --heat "<row>" <°C>` prints a
-row's colour, and a test pins every limit. The menu bar shows the CPU and GPU core sensors,
-weighted the same way, in °F where the Mac's region uses US units and °C elsewhere.
+row's colour, and a test pins every limit. The menu bar shows the top row's temperature, in °F
+where the Mac's region uses US units and °C elsewhere, tinted soft red while that row is red.
 
 **Power is Stats' Voltage, Current and Power sections in plain words**, each row with a tooltip
 saying what it is: Total (`PSTR`, everything the Mac uses), Battery (`PPBR`, power out of the

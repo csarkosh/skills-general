@@ -7,9 +7,11 @@
 //   MacStats                                # runs both menu bar items
 //   MacStats --show-panel temp|disk         # runs, with that item's panel open
 //   MacStats --render temp|disk out.png     # draws that menu bar item to a PNG and exits
+//                                           # (with --alert, Temp as it looks when hot)
 //   MacStats --sensors                      # prints the Temp panel and exits
 //   MacStats --weigh 49.8 53.0 …            # prints those temperatures' hot-weighted value
 //   MacStats --heat "<row name>" <°C>       # prints the colour a Temperature row would get
+//   MacStats --power-level <W>              # prints the power tier: normal, moderate or high
 //   MacStats --spaces                       # prints the disk's five volume spaces
 //   MacStats --legend                       # prints the Disk panel's Spaces rows, in order
 //   MacStats --report [folder] [--min-mb N] # prints the Disk panel's folders
@@ -43,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refresh() {
         let readings = reader.read()
         let tempText = tempItemText(readings)
-        temp.show(tempText.value, tooltip: tempText.tooltip)
+        temp.show(tempText.value, tooltip: tempText.tooltip, alert: tempText.alert)
         if tempPanel.isVisible { tempPanel.update(readings) }
         if let diskText = diskItemText(diskSampler) { disk.show(diskText.value, tooltip: diskText.tooltip) }
     }
@@ -68,7 +70,9 @@ if arguments.contains("--render") {
     }
     let path = arguments[index + 2]
     switch arguments[index + 1] {
-    case "temp": exit(renderMiniView(label: "Temp", value: tempItemText(SensorReader().read()).value, to: path))
+    case "temp":
+        let text = tempItemText(SensorReader().read())
+        exit(renderMiniView(label: "Temp", value: text.value, alert: text.alert || arguments.contains("--alert"), to: path))
     case "disk":
         guard let text = diskItemText(DiskSampler()) else { fail("Could not read the startup disk's capacity.") }
         exit(renderMiniView(label: "Disk", value: text.value, to: path))
@@ -77,6 +81,13 @@ if arguments.contains("--render") {
 }
 if arguments.contains("--sensors") {
     exit(sensorsReport())
+}
+if let index = arguments.firstIndex(of: "--power-level") {
+    guard index + 1 < arguments.count, let watts = Double(arguments[index + 1]) else {
+        fail("usage: MacStats --power-level <W>")
+    }
+    print(powerLevel(watts: watts).rawValue)
+    exit(0)
 }
 if let index = arguments.firstIndex(of: "--heat") {
     guard index + 2 < arguments.count, let celsius = Double(arguments[index + 2]) else {

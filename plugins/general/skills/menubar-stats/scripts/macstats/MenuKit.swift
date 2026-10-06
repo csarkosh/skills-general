@@ -11,6 +11,8 @@ import Cocoa
 final class MiniView: NSView {
     var label = ""
     var value = ""
+    /// Tints the value a soft red, for a reading in the red.
+    var alert = false
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -24,9 +26,12 @@ final class MiniView: NSView {
             .paragraphStyle: left,
         ]).draw(with: CGRect(x: 0, y: 12, width: bounds.width, height: 7))
 
+        let plain: NSColor = isDarkMode ? .white : .black
+        // Soft red: red mixed with the plain text colour, so it reads as a hint, not an alarm.
+        let tint = NSColor.systemRed.blended(withFraction: isDarkMode ? 0.35 : 0.15, of: plain) ?? .systemRed
         NSAttributedString(string: value, attributes: [
             .font: NSFont.systemFont(ofSize: 12, weight: .regular),
-            .foregroundColor: isDarkMode ? NSColor.white : NSColor.black,
+            .foregroundColor: alert ? tint : plain,
             .paragraphStyle: left,
         ]).draw(with: CGRect(x: 0, y: 1, width: bounds.width, height: 13))
     }
@@ -75,10 +80,11 @@ final class MenuBarItem: NSObject {
 
     var button: NSStatusBarButton? { item.button }
 
-    func show(_ value: String, tooltip: String) {
+    func show(_ value: String, tooltip: String, alert: Bool = false) {
         item.button?.toolTip = tooltip
-        guard value != view.value else { return }
+        guard value != view.value || alert != view.alert else { return }
         view.value = value
+        view.alert = alert
         let width = view.contentWidth()
         view.setFrameSize(NSSize(width: width, height: view.frame.height))
         item.length = width
@@ -97,10 +103,11 @@ final class MenuBarItem: NSObject {
 
 /// Draws a menu bar item, at 4x, on a dark menu bar, so its look can be checked
 /// without Screen Recording permission.
-func renderMiniView(label: String, value: String, to path: String) -> Int32 {
+func renderMiniView(label: String, value: String, alert: Bool = false, to path: String) -> Int32 {
     let view = MiniView()
     view.label = label
     view.value = value
+    view.alert = alert
     view.appearance = NSAppearance(named: .darkAqua)
     let width = view.contentWidth()
     let size = NSSize(width: width + 20, height: 22)
@@ -219,6 +226,76 @@ final class PanelRow: NSView {
     func setColor(_ color: NSColor) {
         block.layer?.backgroundColor = color.cgColor
     }
+}
+
+/// A gauge like Stats' RAM pressure gauge: a half circle in three equal green, yellow
+/// and red arcs and a blue needle, with a title and a second line under it. Unlike
+/// Stats', whose needle points at the middle of a band, the needle moves along it:
+/// `fraction` 0 is the start of green, 1/3 the start of yellow, 2/3 of red, 1 the end.
+final class GaugeView: NSView {
+    var fraction: Double = 0 { didSet { needsDisplay = true } }
+    var title = "" { didSet { needsDisplay = true } }
+    var subtitle = "" { didSet { needsDisplay = true } }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let centered = NSMutableParagraphStyle()
+        centered.alignment = .center
+        centered.lineBreakMode = .byTruncatingTail
+        let labels: CGFloat = 26
+        let arcWidth: CGFloat = 6
+        let center = CGPoint(x: bounds.midX, y: labels + 4)
+        let radius = min(bounds.width / 2 - 10, bounds.height - labels - 8) - arcWidth / 2
+
+        // Three equal arcs from the left (π) to the right (0), with small gaps, as in Stats.
+        let gap = 0.025 * CGFloat.pi
+        let span = (CGFloat.pi - 2 * gap) / 3
+        let colors: [NSColor] = [.systemGreen, .systemYellow, .systemRed]
+        context.setLineWidth(arcWidth)
+        context.setLineCap(.round)
+        for (index, color) in colors.enumerated() {
+            let start = CGFloat.pi - CGFloat(index) * (span + gap)
+            context.setStrokeColor(color.cgColor)
+            context.addArc(center: center, radius: radius, startAngle: start, endAngle: start - span, clockwise: true)
+            context.strokePath()
+        }
+
+        // The needle: a thin blue triangle from the centre, as in Stats.
+        let clamped = min(max(fraction, 0), 1)
+        let band = min(Int(clamped * 3), 2)
+        let within = CGFloat(clamped * 3 - Double(band))
+        let angle = CGFloat.pi - CGFloat(band) * (span + gap) - within * span
+        let length = radius - arcWidth / 2 - 1
+        let tip = CGPoint(x: center.x + length * cos(angle), y: center.y + length * sin(angle))
+        let side = CGPoint(x: 2 * cos(angle + .pi / 2), y: 2 * sin(angle + .pi / 2))
+        let needle = NSBezierPath()
+        needle.move(to: tip)
+        needle.line(to: CGPoint(x: center.x + side.x, y: center.y + side.y))
+        needle.line(to: CGPoint(x: center.x - side.x, y: center.y - side.y))
+        needle.close()
+        NSColor.systemBlue.setFill()
+        needle.fill()
+        NSBezierPath(ovalIn: NSRect(x: center.x - 2, y: center.y - 2, width: 4, height: 4)).fill()
+
+        NSAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: 10, weight: .medium),
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: centered,
+        ]).draw(with: CGRect(x: 0, y: 13, width: bounds.width, height: 13))
+        NSAttributedString(string: subtitle, attributes: [
+            .font: NSFont.systemFont(ofSize: 9),
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: centered,
+        ]).draw(with: CGRect(x: 0, y: 1, width: bounds.width, height: 12))
+    }
+}
+
+/// Where a value sits on a gauge whose three bands run from `low` to `warm` (green),
+/// `warm` to `hot` (yellow) and `hot` to `high` (red): each band is a third of the arc.
+func gaugeFraction(_ value: Double, low: Double, warm: Double, hot: Double, high: Double) -> Double {
+    if value < warm { return max(0, (value - low) / (warm - low)) / 3 }
+    if value < hot { return (1 + (value - warm) / (hot - warm)) / 3 }
+    return min(1, (2 + (value - hot) / (high - hot)) / 3)
 }
 
 /// A drop-down panel like Stats' popups: a translucent window under its menu bar

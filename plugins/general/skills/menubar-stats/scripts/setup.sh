@@ -171,6 +171,6 @@ sleep 8
 say "Menu bar, left to right (x, width, owner, item):"
 xcrun swift "$DIR/menubar-order.swift" || say "(could not list the menu bar items)"
 say ""
-say "Expected first: CPU_mini, GPU_mini, RAM_mini, MacStatsTemp, MacStatsDisk (widths about 47, 47, 47, 70, 100)."
+say "Expected first: CPU_mini, GPU_mini, RAM_mini, MacStatsTemp, MacStatsDisk (widths about 47, 47, 47, 45, 100)."
 say "On the first launch macOS may ask whether to open Stats, an app downloaded from the internet: click Open."
 [ -z "$ZOOM_NOTE" ] || say "$ZOOM_NOTE"

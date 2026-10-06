@@ -67,10 +67,24 @@ describe('menubar-stats', () => {
       isPng(png);
     });
 
-    it('renders the Temp item as CPU°/GPU°', (t) => {
+    it('renders the Temp item as the hottest part\'s temperature', (t) => {
       const png = join(tempDir(t, 'macstats-png'), 'temp.png');
-      assert.match(runOk(binary, ['--render', 'temp', png]).stdout, /^(\d+°|–)\/(\d+°|–)\n$/);
+      assert.match(runOk(binary, ['--render', 'temp', png]).stdout, /^(\d+°|–)\n$/);
       isPng(png);
+    });
+
+    it('rates power use by this Mac\'s tiers', () => {
+      const level = (watts) => runOk(binary, ['--power-level', String(watts)]).stdout.trim();
+      // The M4 MacBook Air: normal below 10 W, moderate below 20 W, high from 20 W.
+      if (process.arch === 'arm64' && /Apple M\d+$/.test(runOk('sysctl', ['-n', 'machdep.cpu.brand_string']).stdout.trim())) {
+        assert.deepEqual([9.9, 10, 19.9, 20, 31].map(level), ['normal', 'moderate', 'moderate', 'high', 'high']);
+      }
+      const gauges = runOk(binary, ['--sensors']).stdout.split('\n');
+      const hottest = gauges.find((line) => line.startsWith('Hottest\t'));
+      if (hottest) {
+        const temperatures = gauges.slice(gauges.indexOf('Temperature') + 1);
+        assert.equal(hottest.split('\t')[1], temperatures[0].split('\t')[0], 'the gauge shows the top Temperature row');
+      }
     });
 
     it('weights a group toward its hottest sensor', () => {

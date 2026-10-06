@@ -1,16 +1,18 @@
-// The Temp menu bar item: "Temp" over the CPU and GPU temperatures, and a panel
-// with every sensor the Mac has: temperatures as one row per part (hottest first,
-// coloured by heat), then power in plain words, then fans.
+// The Temp menu bar item: "Temp" over the hottest part's temperature (soft red when
+// that part is in the red), and a panel with two gauges (the hottest part, and how
+// hard the Mac is drawing power) over every sensor the Mac has: temperatures as one
+// row per part (hottest first, coloured by heat), then power in plain words, then fans.
 
 import Cocoa
 
-/// What the Temp item shows: CPU°/GPU°, and both with units for its tooltip.
-func tempItemText(_ readings: [Reading]) -> (value: String, tooltip: String) {
-    let figures = cpuAndGPU(readings)
-    let short = { (celsius: Double?) in celsius.map { degrees($0, unit: false) } ?? "–" }
-    let long = { (celsius: Double?) in celsius.map { degrees($0) } ?? "unknown" }
-    return ("\(short(figures.cpu))/\(short(figures.gpu))",
-            "CPU \(long(figures.cpu)), GPU \(long(figures.gpu)). Click for every sensor.")
+/// What the Temp item shows: the hottest part's temperature, whether that part's row
+/// is red, and the part for its tooltip.
+func tempItemText(_ readings: [Reading]) -> (value: String, tooltip: String, alert: Bool) {
+    guard let hottest = temperatureGroups(readings).first else { return ("–", "No temperature sensors.", false) }
+    let level = heat(of: hottest.name, celsius: hottest.celsius)
+    return (degrees(hottest.celsius, unit: false),
+            "Hottest: \(hottest.name), \(degrees(hottest.celsius)) (\(level.word.lowercased())). Click for every sensor.",
+            level == .hot)
 }
 
 /// The temperatures, in °C, at which a part turns yellow (warm) and red (hot). Parts
@@ -40,6 +42,14 @@ func heatLimits(for name: String) -> HeatLimits {
 enum Heat: String {
     case normal = "green", warm = "yellow", hot = "red"
 
+    var word: String {
+        switch self {
+        case .normal: return "Normal"
+        case .warm: return "Warm"
+        case .hot: return "Hot"
+        }
+    }
+
     var color: NSColor {
         switch self {
         case .normal: return .systemGreen
@@ -52,6 +62,73 @@ enum Heat: String {
 func heat(of name: String, celsius: Double) -> Heat {
     let limits = heatLimits(for: name)
     return celsius < limits.warm ? .normal : celsius < limits.hot ? .warm : .hot
+}
+
+/// Where a temperature sits on its part's gauge: green from 25 °C, yellow from the
+/// part's warm limit, red from its hot limit, the arc ending as far past hot as warm is
+/// below it.
+func heatFraction(of name: String, celsius: Double) -> Double {
+    let limits = heatLimits(for: name)
+    return gaugeFraction(celsius, low: 25, warm: limits.warm, hot: limits.hot, high: 2 * limits.hot - limits.warm)
+}
+
+// MARK: - Power use
+
+/// How much power the whole Mac draws, in three tiers like the temperatures. The tiers
+/// follow the Mac's own figures. The M4 MacBook Air idles at 0.7–3.6 W (Apple's
+/// ENERGY STAR filing); under load its chip sustains 8–9 W and bursts to 20–23 W, and
+/// the whole Mac peaks near 31 W, the size of its 30 W charger (Notebookcheck,
+/// LaptopMedia). So: normal below 10 W, moderate below 20 W, high from 20 W, the gauge
+/// ending at 31 W. Other Macs get tiers scaled to their chip class, which are estimates.
+struct PowerLimits {
+    let moderate: Double
+    let high: Double
+    let maximum: Double
+}
+
+let powerLimits: PowerLimits = {
+    switch Chip.current {
+    case .m1Pro, .m2Pro, .m3Pro, .m4Pro, .m5Pro:
+        return PowerLimits(moderate: 20, high: 45, maximum: 70)
+    case .m1Max, .m2Max, .m3Max, .m4Max, .m5Max, .m1Ultra, .m2Ultra, .m3Ultra, .m4Ultra, .m5Ultra:
+        return PowerLimits(moderate: 35, high: 90, maximum: 140)
+    case .intel:
+        return PowerLimits(moderate: 20, high: 45, maximum: 90)
+    default:
+        return PowerLimits(moderate: 10, high: 20, maximum: 31)
+    }
+}()
+
+enum PowerLevel: String {
+    case normal, moderate, high
+
+    var word: String { rawValue.capitalized }
+    var color: NSColor {
+        switch self {
+        case .normal: return .systemGreen
+        case .moderate: return .systemYellow
+        case .high: return .systemRed
+        }
+    }
+}
+
+func powerLevel(watts: Double) -> PowerLevel {
+    watts < powerLimits.moderate ? .normal : watts < powerLimits.high ? .moderate : .high
+}
+
+/// What the Mac draws now, and how long the battery lasts at that rate when it is
+/// running on the battery.
+func powerUse(_ readings: [Reading], battery charge: BatteryCharge?) -> (watts: Double, hoursLeft: Double?)? {
+    let byKey = Dictionary(readings.map { ($0.sensor.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+    guard let total = byKey["PSTR"], total > 0 else { return nil }
+    let onCharger = (byKey["PDTR"] ?? 0) > 0.5 || (byKey["VD0R"] ?? 0) > 1
+    let hours = onCharger ? nil : charge.map { $0.leftWh / total }
+    return (total, hours)
+}
+
+func formatHours(_ hours: Double) -> String {
+    let minutes = Int((hours * 60).rounded())
+    return minutes < 60 ? "about \(minutes) min left" : "about \(minutes / 60) h \(minutes % 60) min left"
 }
 
 /// One row of the Power section.
@@ -103,6 +180,8 @@ func powerLines(_ readings: [Reading], battery charge: BatteryCharge?) -> [Power
 
 final class TempPanel: StatsPanel {
     private let reader: SensorReader
+    private let heatGauge = GaugeView()
+    private let powerGauge = GaugeView()
     private let temperatureList = NSStackView()
     private var temperatureRows: [String: PanelRow] = [:]
     private let powerCaption = separatorView("Power")
@@ -118,6 +197,21 @@ final class TempPanel: StatsPanel {
 
     private func build(_ readings: [Reading]) {
         let groups = temperatureGroups(readings)
+        // Two gauges on top, as Stats' RAM panel has: the hottest part, and power use.
+        let dashboard = NSStackView(views: [heatGauge, powerGauge])
+        dashboard.orientation = .horizontal
+        dashboard.distribution = .fillEqually
+        dashboard.spacing = 0
+        dashboard.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            dashboard.widthAnchor.constraint(equalToConstant: Panel.width),
+            dashboard.heightAnchor.constraint(equalToConstant: 92),
+        ])
+        heatGauge.toolTip = "The hottest part, on its own limits: the same colours as its row below."
+        powerGauge.toolTip = String(format: "What the whole Mac draws: normal below %.0f W, moderate below %.0f W, "
+            + "high from %.0f W; the gauge ends at %.0f W, this Mac's peak.",
+            powerLimits.moderate, powerLimits.high, powerLimits.high, powerLimits.maximum)
+        body.addArrangedSubview(dashboard)
         if !groups.isEmpty {
             body.addArrangedSubview(separatorView("Temperature"))
             temperatureList.orientation = .vertical
@@ -157,9 +251,21 @@ final class TempPanel: StatsPanel {
         update(reader.read())
     }
 
-    /// Shows new readings: temperature rows re-sorted hottest first and recoloured.
+    /// Shows new readings: the gauges, and temperature rows re-sorted hottest first and recoloured.
     func update(_ readings: [Reading]) {
         let groups = temperatureGroups(readings)
+        let charge = batteryCharge()
+        if let hottest = groups.first {
+            heatGauge.fraction = heatFraction(of: hottest.name, celsius: hottest.celsius)
+            heatGauge.title = "\(heat(of: hottest.name, celsius: hottest.celsius).word) · \(degrees(hottest.celsius))"
+            heatGauge.subtitle = hottest.name
+        }
+        if let use = powerUse(readings, battery: charge) {
+            powerGauge.fraction = gaugeFraction(use.watts, low: 0, warm: powerLimits.moderate,
+                                                hot: powerLimits.high, high: powerLimits.maximum)
+            powerGauge.title = String(format: "%@ · %.0f W", powerLevel(watts: use.watts).word, use.watts)
+            powerGauge.subtitle = use.hoursLeft.map(formatHours) ?? "on charger"
+        }
         for group in groups {
             guard let row = temperatureRows[group.name] else { continue }
             row.value.stringValue = degrees(group.celsius)
@@ -171,7 +277,7 @@ final class TempPanel: StatsPanel {
         }
         temperatureList.setViews(groups.compactMap { temperatureRows[$0.name] }, in: .top)
         // Power rows come and go with the charger.
-        let lines = powerLines(readings, battery: batteryCharge())
+        let lines = powerLines(readings, battery: charge)
         for line in lines {
             let row = powerRows[line.id] ?? PanelRow(line.title + ":")
             powerRows[line.id] = row
@@ -196,13 +302,23 @@ func sensorsReport() -> Int32 {
         return 1
     }
     let groups = temperatureGroups(readings)
+    let charge = batteryCharge()
+    print("Gauges")
+    if let hottest = groups.first {
+        print(["Hottest", hottest.name, String(format: "%.1f", hottest.celsius),
+               heat(of: hottest.name, celsius: hottest.celsius).rawValue].joined(separator: "\t"))
+    }
+    if let use = powerUse(readings, battery: charge) {
+        print(["Power use", String(format: "%.1f", use.watts), powerLevel(watts: use.watts).rawValue,
+               use.hoursLeft.map(formatHours) ?? "on charger"].joined(separator: "\t"))
+    }
     if !groups.isEmpty { print("Temperature") }
     for group in groups {
         print([group.name, String(format: "%.1f", group.celsius), String(group.count),
                String(format: "%.1f-%.1f", group.coolest, group.hottest),
                heat(of: group.name, celsius: group.celsius).rawValue].joined(separator: "\t"))
     }
-    let lines = powerLines(readings, battery: batteryCharge())
+    let lines = powerLines(readings, battery: charge)
     if !lines.isEmpty { print("Power") }
     for line in lines { print(line.title + "\t" + line.value) }
     let fans = readings.filter { $0.sensor.kind == .fan }
