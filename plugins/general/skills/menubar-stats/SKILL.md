@@ -102,8 +102,9 @@ chart (the last three minutes, a sample a second), but with a band per part inst
 used: App (blue), Wired (orange) and Compressed (pink) stacked from the bottom and Free (grey) on
 top, in the same colours as the rows; "Free: 2.1 GB (13%)", Free's size and share now, sits at
 the top right against the top edge, and "3 min ago … now" runs underneath. Then
-Used with its bar, a row per part and Swap. Swap has no colour: it is disk space used as
-overflow, outside the physical memory the chart and the bar divide up. The
+Used with its bar, a row per part and Swap (purple). Swap is disk space used as overflow,
+outside the physical memory the bands and the bar divide up, so the chart draws it as a dashed
+purple line on the same scale rather than a band. The
 figures are Stats': used is active, inactive, speculative, wired and compressed pages less
 purgeable and file-backed ones, App is used less Wired and Compressed, Free is the rest, all in
 the binary units macOS uses for memory. **Top processes** lists the eight processes using the

@@ -62,6 +62,11 @@ let memoryParts: [(title: String, color: NSColor, value: (MemoryUsage) -> Double
     ("Free", .lightGray, { $0.free }),
 ]
 
+/// Swap is disk space macOS uses as overflow when memory runs short. It is not part of
+/// the physical memory the bands divide up, so the chart draws it as a dashed line on
+/// the same scale instead of a band, in its row's colour.
+let swapColor = NSColor.systemPurple
+
 /// What the RAM item shows: the share of memory in use.
 func ramItemText(_ usage: MemoryUsage) -> (value: String, tooltip: String) {
     (String(format: "%.0f%%", usage.used / usage.total * 100),
@@ -171,6 +176,16 @@ final class MemoryChart: NSView {
             path.fill()
             below = above
         }
+        // Swap over time, as a dashed line on the same scale (capped at the top).
+        let swapLine = NSBezierPath()
+        for index in samples.indices {
+            let point = CGPoint(x: x(index), y: y(min(1, samples[index].swap / samples[index].total)))
+            if index == 0 { swapLine.move(to: point) } else { swapLine.line(to: point) }
+        }
+        swapLine.lineWidth = 1.5
+        swapLine.setLineDash([4, 2], count: 2, phase: 0)
+        swapColor.setStroke()
+        swapLine.stroke()
         // Free's size and share now, "Free: 2.1 GB (13%)", at the top right, against the top edge.
         if let free = memoryParts.last {
             let right = NSMutableParagraphStyle()
@@ -245,7 +260,7 @@ final class RAMPanel: StatsPanel {
     private let usedRow = PanelRow("Used:")
     private let bar = SpaceBar()
     private let partRows = memoryParts.map { PanelRow($0.title + ":", color: $0.color.withAlphaComponent($0.title == "Free" ? 0.5 : 1)) }
-    private let swapRow = PanelRow("Swap:")
+    private let swapRow = PanelRow("Swap:", color: swapColor)
     private let processRows = (0..<8).map { _ in ProcessRow() }
     private var processTimer: Timer?
 
@@ -263,6 +278,8 @@ final class RAMPanel: StatsPanel {
         body.addArrangedSubview(bar)
         for row in partRows { body.addArrangedSubview(row) }
         body.addArrangedSubview(swapRow)
+        swapRow.toolTip = "Disk space macOS uses as overflow when memory runs short. It is not part of the "
+            + "memory above, so the chart shows it as a dashed line, not a band."
 
         body.addArrangedSubview(separatorView("Top processes"))
         let heading = ProcessRow()
