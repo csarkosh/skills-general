@@ -176,7 +176,7 @@ final class GPUSampler {
     }
 }
 
-/// The most memory macOS lets the GPU use (Metal's recommended working set: 12.7 GB of
+/// The most memory macOS lets the GPU use (Metal's recommended working set: 11.84 GB of
 /// a 16 GB Mac), or all of the Mac's memory if Metal cannot say.
 let gpuMemoryLimit: Double = {
     let limit = MTLCreateSystemDefaultDevice().map { Double($0.recommendedMaxWorkingSetSize) } ?? 0
@@ -247,6 +247,9 @@ func utilizationWord(_ value: Double) -> String {
 }
 
 func formatPercent(_ value: Double) -> String { String(format: "%.0f%%", value * 100) }
+
+/// Bytes as gigabytes in the units macOS counts memory in (1 GB = 1024³ bytes), two places.
+func formatGB(_ bytes: Double) -> String { String(format: "%.2f", bytes / 1_073_741_824) }
 
 /// The chart's series and the rows coloured like them.
 let gpuSeries: [(title: String, color: NSColor, value: (GPUSample) -> Double)] = [
@@ -363,6 +366,8 @@ final class GPUPanel: StatsPanel {
     // GPU memory in use over the last three minutes, scaled to the most macOS lets the
     // GPU use, so the bar shows how close it is to its limit.
     private let memorySparkline = Sparkline(color: gpuMemoryColor)
+    /// "0.49 / 11.84 GB" under the Memory row: in use and the limit, right-aligned.
+    private let memoryDetail = NSTextField(labelWithString: "")
     private let appRows = (0..<8).map { _ in ProcessRow() }
     private let noApps = NSTextField(labelWithString: "Measuring…")
     private let appSampler = GPUAppSampler()
@@ -401,6 +406,13 @@ final class GPUPanel: StatsPanel {
         fpsRow.toolTip = "Frames the displays showed in the last second."
         memorySparkline.capacity = history.capacity
         memorySparkline.place(in: memoryRow)
+        memoryDetail.font = .systemFont(ofSize: 12)
+        memoryDetail.textColor = .secondaryLabelColor
+        memoryDetail.alignment = .right
+        memoryDetail.translatesAutoresizingMaskIntoConstraints = false
+        memoryDetail.widthAnchor.constraint(equalToConstant: Panel.width).isActive = true
+        body.addArrangedSubview(memoryDetail)
+        body.setCustomSpacing(2, after: memoryDetail)
 
         body.addArrangedSubview(separatorView("Details"))
         let model = PanelRow("Model:")
@@ -443,10 +455,13 @@ final class GPUPanel: StatsPanel {
         for (row, series) in zip(seriesRows, gpuSeries) { row.value.stringValue = formatPercent(series.value(sample)) }
         neuralRow.value.stringValue = sample.neuralEngine.map(formatPercent) ?? "–"
         fpsRow.value.stringValue = sample.fps.map { String(format: "%.0f", $0) } ?? "–"
-        memoryRow.value.stringValue = formatMemory(sample.memoryInUse)
+        memoryRow.value.stringValue = formatPercent(sample.memoryInUse / gpuMemoryLimit)
+        memoryDetail.stringValue = "\(formatGB(sample.memoryInUse)) / \(formatGB(gpuMemoryLimit)) GB"
         memorySparkline.fractions = history.samples.map { $0.memoryInUse / gpuMemoryLimit }
-        memoryRow.toolTip = "Memory the GPU is using now; it holds \(formatMemory(sample.memoryAllocated)) set aside. "
-            + "The small graph shows the last three minutes against the \(formatMemory(gpuMemoryLimit)) macOS lets the GPU use."
+        let tooltip = "Memory the GPU is using now, out of the \(formatMemory(gpuMemoryLimit)) macOS lets it use; "
+            + "it holds \(formatMemory(sample.memoryAllocated)) set aside. The small graph shows the last three minutes."
+        memoryRow.toolTip = tooltip
+        memoryDetail.toolTip = tooltip
     }
 
     override func willOpen() {
