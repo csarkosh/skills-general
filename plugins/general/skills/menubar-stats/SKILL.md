@@ -103,17 +103,25 @@ chips arrive with a Stats update).
 ("CPU performance core 1" to "8" are "CPU performance cores", "GPU 1" to "8" are "GPU",
 "Airport" is "Wi-Fi"). A row's value leans toward its hottest sensor: each reading is weighted
 by e^((t − hottest) / 3 °C), so the hottest counts fully, one 3 °C cooler about 37% and one
-6 °C cooler about 14%. The tooltip gives the sensor count and range. Squares are green under
-60 °C, yellow under 80 °C, red from 80 °C. The menu bar shows the CPU and GPU core sensors,
+6 °C cooler about 14%. The tooltip gives the sensor count and range and the row's limits.
+Squares turn yellow and red at limits set per part in `Temp.swift`, because parts differ: chip
+parts (CPU, GPU, machine-learning engine, memory) yellow from 85 °C and red from 100 °C (they run at
+60–85 °C under load and throttle from about 90–100 °C); the battery from 35 °C and 40 °C (Apple's
+range is 10–35 °C, and heat above 40 °C wears it); the SSD from 50 °C and 70 °C (flash is rated
+to about 70 °C); anything else from 60 °C and 80 °C. `MacStats --heat "<row>" <°C>` prints a
+row's colour, and a test pins every limit. The menu bar shows the CPU and GPU core sensors,
 weighted the same way, in °F where the Mac's region uses US units and °C elsewhere.
 
 **Power is Stats' Voltage, Current and Power sections in plain words**, each row with a tooltip
 saying what it is: Total (`PSTR`, everything the Mac uses), Battery (`PPBR`, power out of the
-battery), Battery left (`25.8/52.6 Wh (49%)`: what remains of what a full charge holds now, from
-the `AppleSmartBattery` registry entry in `Battery.swift`; the percentage is the battery icon's,
-and the tooltip adds the capacity when new and the charge cycles), Charger (`PDTR` in watts, with `VD0R` volts and `ID0R` amps in its tooltip; shown only
+battery), Charger (`PDTR` in watts, with `VD0R` volts and `ID0R` amps in its tooltip; shown only
 while a charger is connected) and Internal supply (`VP0R`, the main supply line, near 12 V). Any
-other power, voltage or current sensor follows under Stats' name for it. Fans lists each fan in RPM.
+other power, voltage or current sensor follows under Stats' name for it. Battery left comes last
+(`26.2/53.5 Wh (49%)`: what remains of what a full charge holds now, from the `AppleSmartBattery`
+registry entry in `Battery.swift`). Its mAh become Wh at the cells' rated 3.87 V, not the live
+voltage, which would swing with charging; that matches Apple's ratings (4,629 mAh is the M4
+MacBook Air's 53.8 Wh). The percentage is the battery icon's, and the tooltip adds the capacity
+when new and the charge cycles. Fans lists each fan in RPM.
 
 Reading the SMC needs no permission and causes no privacy prompt.
 
@@ -131,7 +139,10 @@ Preboot plus Update, Recovery, VM and Data; Used and Free are the container's. P
 macOS frees on its own: the panel's volumes count it as used, the menu bar (like Finder) as free.
 Below, my apps / files is broken down into folders three levels deep (100 MB and over, biggest
 first; an app is one row), measured on the Data volume (`/System/Volumes/Data`) by allocated
-blocks like `du -x`. That takes about a minute, so the panel reuses a measurement for 10 minutes.
+blocks like `du -x`. That takes about a minute, so the panel reuses a measurement for 10 minutes,
+and while it measures again it keeps showing the last one ("Updating… last measured at …"). The
+last measurement is saved to `~/Library/Caches/sh.csarko.MacStats/folders.json`, so after a
+restart the panel opens with it instead of an empty list.
 The header's arrow measures again, its drive icon opens Storage settings, and double-clicking a
 folder shows it in Finder.
 

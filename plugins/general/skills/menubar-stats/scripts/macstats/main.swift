@@ -9,6 +9,7 @@
 //   MacStats --render temp|disk out.png     # draws that menu bar item to a PNG and exits
 //   MacStats --sensors                      # prints the Temp panel and exits
 //   MacStats --weigh 49.8 53.0 …            # prints those temperatures' hot-weighted value
+//   MacStats --heat "<row name>" <°C>       # prints the colour a Temperature row would get
 //   MacStats --spaces                       # prints the disk's five volume spaces
 //   MacStats --legend                       # prints the Disk panel's Spaces rows, in order
 //   MacStats --report [folder] [--min-mb N] # prints the Disk panel's folders
@@ -76,6 +77,13 @@ if arguments.contains("--render") {
 }
 if arguments.contains("--sensors") {
     exit(sensorsReport())
+}
+if let index = arguments.firstIndex(of: "--heat") {
+    guard index + 2 < arguments.count, let celsius = Double(arguments[index + 2]) else {
+        fail("usage: MacStats --heat <row name> <°C>")
+    }
+    print(heat(of: arguments[index + 1], celsius: celsius).rawValue)
+    exit(0)
 }
 if let index = arguments.firstIndex(of: "--weigh") {
     let values = arguments[(index + 1)...].compactMap(Double.init)

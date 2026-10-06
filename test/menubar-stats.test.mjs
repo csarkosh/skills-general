@@ -85,6 +85,17 @@ describe('menubar-stats', () => {
       assert.ok(weighted > mean && weighted < Math.max(...values), 'between the average and the hottest');
     });
 
+    it('colours each temperature row by that part\'s own limits', () => {
+      const heat = (name, celsius) => runOk(binary, ['--heat', name, String(celsius)]).stdout.trim();
+      // [row, yellow from, red from]: a chip runs hot by design, a battery and an SSD do not.
+      for (const [name, warm, hot] of [['CPU performance cores', 85, 100], ['GPU', 85, 100], ['Battery', 35, 40], ['SSD', 50, 70], ['Wi-Fi', 60, 80]]) {
+        assert.equal(heat(name, warm - 0.1), 'green', `${name} below ${warm} °C`);
+        assert.equal(heat(name, warm), 'yellow', `${name} at ${warm} °C`);
+        assert.equal(heat(name, hot - 0.1), 'yellow', `${name} below ${hot} °C`);
+        assert.equal(heat(name, hot), 'red', `${name} at ${hot} °C`);
+      }
+    });
+
     it('lists each part of the Mac once, with no numbered sensors left', () => {
       const lines = runOk(binary, ['--sensors']).stdout.trim().split('\n');
       const start = lines.indexOf('Temperature');

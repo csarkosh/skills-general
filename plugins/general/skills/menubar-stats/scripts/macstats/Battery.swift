@@ -24,10 +24,14 @@ func batteryCharge() -> BatteryCharge? {
     guard IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0) == KERN_SUCCESS,
           let battery = properties?.takeRetainedValue() as? [String: Any] else { return nil }
     let number = { (key: String) in (battery[key] as? NSNumber)?.doubleValue ?? 0 }
-    // Capacities are in mAh; at the battery's voltage (mV) they give watt-hours.
-    let volts = number("Voltage") / 1000
+    // Capacities are in mAh; at the cells' rated voltage they give watt-hours. The live
+    // voltage would make the figures swing with charging (11.4 V on battery, 11.9 V on
+    // the charger), so use the rated one: 3.87 V a cell gives Apple's own ratings
+    // (4,629 mAh is the M4 MacBook Air's 53.8 Wh) and reads about 2% high on older cells.
+    let cells = ((battery["BatteryData"] as? [String: Any])?["CellVoltage"] as? [Any])?.count ?? 3
+    let volts = 3.87 * Double(max(cells, 1))
     let fullMah = number("AppleRawMaxCapacity"), designMah = number("DesignCapacity")
-    guard volts > 0, fullMah > 0 else { return nil }
+    guard fullMah > 0 else { return nil }
     // Apple silicon reports the charge as a percentage (out of 100), older Macs in mAh.
     let current = number("CurrentCapacity"), maximum = number("MaxCapacity")
     guard maximum > 0 else { return nil }

@@ -43,7 +43,7 @@ func diskItemText(_ sampler: DiskSampler) -> (value: String, tooltip: String)? {
 // MARK: - The five spaces
 
 /// A row in the panel: one of the five spaces, or a folder inside the last.
-final class Entry {
+final class Entry: Codable {
     let title: String
     let path: String?
     var bytes: Int64
@@ -342,6 +342,7 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         setHeaderButtons(leading: headerButton("arrow.clockwise", "Measure again", #selector(refreshAll)),
                          trailing: headerButton("internaldrive", "Open Storage settings", #selector(openStorageSettings)))
         build()
+        loadSavedMeasurement()
     }
 
     var isMeasured: Bool { measuredAt != nil && !scanning }
@@ -396,8 +397,9 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         scroll.autohidesScrollers = true
         scroll.translatesAutoresizingMaskIntoConstraints = false
 
-        // While measuring, the list is empty and the measuring note sits at its top,
-        // a little below the caption; once measured, the time shows under the list.
+        // The time of the last measurement sits at the top, under the caption, above the
+        // list. Before the first measurement the list is empty and the measuring note
+        // fills its top instead.
         spinner.style = .spinning
         spinner.controlSize = .small
         for text in [measuring, status] {
@@ -417,10 +419,10 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         folderArea.translatesAutoresizingMaskIntoConstraints = false
         folderArea.addSubview(scroll)
         folderArea.addSubview(measuringNote)
-        body.addArrangedSubview(folderArea)
         status.translatesAutoresizingMaskIntoConstraints = false
-        body.setCustomSpacing(6, after: folderArea)
         body.addArrangedSubview(status)
+        body.setCustomSpacing(6, after: status)
+        body.addArrangedSubview(folderArea)
 
         NSLayoutConstraint.activate([
             folderArea.widthAnchor.constraint(equalToConstant: Panel.width),
@@ -431,7 +433,7 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
             scroll.bottomAnchor.constraint(equalTo: folderArea.bottomAnchor),
             measuringNote.leadingAnchor.constraint(equalTo: folderArea.leadingAnchor),
             measuringNote.trailingAnchor.constraint(equalTo: folderArea.trailingAnchor),
-            measuringNote.topAnchor.constraint(equalTo: folderArea.topAnchor, constant: 12),
+            measuringNote.topAnchor.constraint(equalTo: folderArea.topAnchor),
             // Room for its line, kept while measuring, so the panel does not jump.
             status.widthAnchor.constraint(equalToConstant: Panel.width),
             status.heightAnchor.constraint(equalToConstant: 14),
@@ -457,39 +459,69 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         }
     }
 
+    /// Measures the folders again. The last measurement stays on screen until the new
+    /// one replaces it; only with none to show does the list wait, empty, for the first.
     func measureFolders() {
         guard !scanning else { return }
         scanning = true
-        folders = []
-        outline.reloadData()
         spinner.startAnimation(nil)
         updateStatus()
         DispatchQueue.global(qos: .utility).async {
             let measured = scanFolders(dataVolume)
             DispatchQueue.main.async {
-                self.folders = measured
                 self.scanning = false
-                self.measuredAt = Date()
                 self.spinner.stopAnimation(nil)
-                self.outline.reloadData()
-                // Open the biggest branch, so its third level shows.
-                var next = self.folders.first
-                while let folder = next, !folder.children.isEmpty {
-                    self.outline.expandItem(folder)
-                    next = folder.children.first
-                }
-                self.updateStatus()
+                self.show(measured, at: Date())
+                self.saveMeasurement()
             }
         }
     }
 
+    private func show(_ measured: [Entry], at time: Date) {
+        folders = measured
+        measuredAt = time
+        outline.reloadData()
+        // Open the biggest branch, so its third level shows.
+        var next = folders.first
+        while let folder = next, !folder.children.isEmpty {
+            outline.expandItem(folder)
+            next = folder.children.first
+        }
+        updateStatus()
+    }
+
+    // The last measurement is kept in the app's cache folder, so a restart (a login,
+    // an update) opens with it instead of measuring from nothing.
+    private struct SavedMeasurement: Codable {
+        let measuredAt: Date
+        let folders: [Entry]
+    }
+
+    private static let savedMeasurementURL: URL? = FileManager.default
+        .urls(for: .cachesDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("sh.csarko.MacStats/folders.json")
+
+    private func saveMeasurement() {
+        guard let url = Self.savedMeasurementURL, let measuredAt,
+              let data = try? JSONEncoder().encode(SavedMeasurement(measuredAt: measuredAt, folders: folders)) else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
+    }
+
+    private func loadSavedMeasurement() {
+        guard let url = Self.savedMeasurementURL, let data = try? Data(contentsOf: url),
+              let saved = try? JSONDecoder().decode(SavedMeasurement.self, from: data) else { return }
+        show(saved.folders, at: saved.measuredAt)
+    }
+
     private func updateStatus() {
         let privacy = "Private folders are never opened; ≥\u{00A0}means at least."
-        measuringNote.isHidden = !scanning
+        // The measuring note fills the list only while there is nothing to show yet.
+        measuringNote.isHidden = !(scanning && folders.isEmpty)
         measuring.stringValue = "Measuring folders, about a minute… " + privacy
-        if !scanning, let measuredAt {
+        if let measuredAt {
             let time = DateFormatter.localizedString(from: measuredAt, dateStyle: .none, timeStyle: .short)
-            status.stringValue = "Last measured at \(time)."
+            status.stringValue = scanning ? "Updating… last measured at \(time)." : "Last measured at \(time)."
         } else {
             status.stringValue = ""
         }

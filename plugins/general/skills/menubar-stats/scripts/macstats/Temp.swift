@@ -13,9 +13,45 @@ func tempItemText(_ readings: [Reading]) -> (value: String, tooltip: String) {
             "CPU \(long(figures.cpu)), GPU \(long(figures.gpu)). Click for every sensor.")
 }
 
-/// Green under 60 °C, yellow under 80 °C, red from 80 °C.
-func heatColor(_ celsius: Double) -> NSColor {
-    celsius < 60 ? .systemGreen : celsius < 80 ? .systemYellow : .systemRed
+/// The temperatures, in °C, at which a part turns yellow (warm) and red (hot). Parts
+/// differ a lot: a chip runs at 60–85 °C under load and throttles from about 90–100 °C,
+/// a battery should stay within 10–35 °C and wears faster above 40 °C, and an SSD's
+/// flash is rated to about 70 °C.
+struct HeatLimits {
+    let warm: Double
+    let hot: Double
+}
+
+let chipLimits = HeatLimits(warm: 85, hot: 100)
+let batteryLimits = HeatLimits(warm: 35, hot: 40)
+let ssdLimits = HeatLimits(warm: 50, hot: 70)
+let otherLimits = HeatLimits(warm: 60, hot: 80)
+
+/// The limits for a temperature row, by its name.
+func heatLimits(for name: String) -> HeatLimits {
+    let lower = name.lowercased()
+    if lower.contains("battery") { return batteryLimits }
+    if lower.contains("ssd") || lower.contains("nand") || lower.hasPrefix("disk") { return ssdLimits }
+    let chipParts = ["cpu", "gpu", "engine", "soc", "memory", "package", "die"]
+    if chipParts.contains(where: lower.contains) { return chipLimits }
+    return otherLimits
+}
+
+enum Heat: String {
+    case normal = "green", warm = "yellow", hot = "red"
+
+    var color: NSColor {
+        switch self {
+        case .normal: return .systemGreen
+        case .warm: return .systemYellow
+        case .hot: return .systemRed
+        }
+    }
+}
+
+func heat(of name: String, celsius: Double) -> Heat {
+    let limits = heatLimits(for: name)
+    return celsius < limits.warm ? .normal : celsius < limits.hot ? .warm : .hot
 }
 
 /// One row of the Power section.
@@ -27,10 +63,10 @@ struct PowerLine {
 }
 
 /// The Power section: the SMC's voltage, current and power readings in plain words,
-/// and the battery's charge. What the whole Mac uses, the battery's draw and what is
-/// left in it, the charger (only while one is connected, with its voltage and current
-/// in the tooltip) and the internal supply; any other such sensor follows under its
-/// own name.
+/// and the battery's charge. What the whole Mac uses, the battery's draw, the charger
+/// (only while one is connected, with its voltage and current in the tooltip) and the
+/// internal supply; any other such sensor follows under its own name; what is left in
+/// the battery comes last.
 func powerLines(_ readings: [Reading], battery charge: BatteryCharge?) -> [PowerLine] {
     let byKey = Dictionary(readings.map { ($0.sensor.key, $0.value) }, uniquingKeysWith: { first, _ in first })
     var lines: [PowerLine] = []
@@ -41,13 +77,6 @@ func powerLines(_ readings: [Reading], battery charge: BatteryCharge?) -> [Power
     if let battery = byKey["PPBR"] {
         lines.append(PowerLine(id: "PPBR", title: "Battery", value: String(format: "%.1f W", battery),
                                tooltip: "Power coming out of the battery; about 0 while a charger covers everything."))
-    }
-    if let charge {
-        lines.append(PowerLine(
-            id: "batteryLeft", title: "Battery left",
-            value: String(format: "%.1f/%.1f Wh (%d%%)", charge.leftWh, charge.fullWh, charge.percent),
-            tooltip: String(format: "A full charge holds %.1f Wh; new, it held %.1f Wh. %d charge cycles so far. "
-                + "The percentage is the one the battery icon shows.", charge.fullWh, charge.designWh, charge.cycles)))
     }
     let chargerWatts = byKey["PDTR"] ?? 0, chargerVolts = byKey["VD0R"] ?? 0, chargerAmps = byKey["ID0R"] ?? 0
     if chargerWatts > 0.5 || chargerVolts > 1 {
@@ -61,6 +90,13 @@ func powerLines(_ readings: [Reading], battery charge: BatteryCharge?) -> [Power
     let shown: Set<String> = ["PSTR", "PPBR", "PDTR", "VD0R", "ID0R", "VP0R"]
     for reading in readings where [.power, .voltage, .current].contains(reading.sensor.kind) && !shown.contains(reading.sensor.key) {
         lines.append(PowerLine(id: reading.sensor.key, title: reading.sensor.name, value: formatReading(reading), tooltip: nil))
+    }
+    if let charge {
+        lines.append(PowerLine(
+            id: "batteryLeft", title: "Battery left",
+            value: String(format: "%.1f/%.1f Wh (%d%%)", charge.leftWh, charge.fullWh, charge.percent),
+            tooltip: String(format: "A full charge holds %.1f Wh; new, it held %.1f Wh. %d charge cycles so far. "
+                + "The percentage is the one the battery icon shows.", charge.fullWh, charge.designWh, charge.cycles)))
     }
     return lines
 }
@@ -88,7 +124,7 @@ final class TempPanel: StatsPanel {
             temperatureList.alignment = .leading
             temperatureList.spacing = 0
             for group in groups {
-                temperatureRows[group.name] = PanelRow(group.name + ":", color: heatColor(group.celsius))
+                temperatureRows[group.name] = PanelRow(group.name + ":", color: heat(of: group.name, celsius: group.celsius).color)
             }
             body.addArrangedSubview(temperatureList)
         }
@@ -127,9 +163,11 @@ final class TempPanel: StatsPanel {
         for group in groups {
             guard let row = temperatureRows[group.name] else { continue }
             row.value.stringValue = degrees(group.celsius)
-            row.setColor(heatColor(group.celsius))
-            row.toolTip = group.count == 1 ? nil
-                : "\(group.count) sensors, \(degrees(group.coolest)) to \(degrees(group.hottest)), weighted toward the hottest."
+            row.setColor(heat(of: group.name, celsius: group.celsius).color)
+            let limits = heatLimits(for: group.name)
+            let sensors = group.count == 1 ? ""
+                : "\(group.count) sensors, \(degrees(group.coolest)) to \(degrees(group.hottest)), weighted toward the hottest. "
+            row.toolTip = sensors + "Yellow from \(degrees(limits.warm)), red from \(degrees(limits.hot))."
         }
         temperatureList.setViews(groups.compactMap { temperatureRows[$0.name] }, in: .top)
         // Power rows come and go with the charger.
@@ -161,7 +199,8 @@ func sensorsReport() -> Int32 {
     if !groups.isEmpty { print("Temperature") }
     for group in groups {
         print([group.name, String(format: "%.1f", group.celsius), String(group.count),
-               String(format: "%.1f-%.1f", group.coolest, group.hottest)].joined(separator: "\t"))
+               String(format: "%.1f-%.1f", group.coolest, group.hottest),
+               heat(of: group.name, celsius: group.celsius).rawValue].joined(separator: "\t"))
     }
     let lines = powerLines(readings, battery: batteryCharge())
     if !lines.isEmpty { print("Power") }
