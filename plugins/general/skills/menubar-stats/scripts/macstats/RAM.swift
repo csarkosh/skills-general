@@ -171,7 +171,7 @@ final class MemoryChart: NSView {
             path.fill()
             below = above
         }
-        // Free's size now, at the top right, 4 points below the top edge.
+        // Free's size now, at the top right, 1 point below the top edge.
         if let free = memoryParts.last {
             let right = NSMutableParagraphStyle()
             right.alignment = .right
@@ -181,7 +181,7 @@ final class MemoryChart: NSView {
                 .paragraphStyle: right,
             ])
             let height = ceil(text.size().height)
-            text.draw(with: NSRect(x: plot.minX, y: plot.maxY - 4 - height, width: plot.width - 10, height: height))
+            text.draw(with: NSRect(x: plot.minX, y: plot.maxY - 1 - height, width: plot.width - 10, height: height))
         }
         NSGraphicsContext.restoreGraphicsState()
     }
