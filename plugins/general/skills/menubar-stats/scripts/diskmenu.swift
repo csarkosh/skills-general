@@ -14,7 +14,7 @@
 //   DiskMenu --show-panel                  # runs, with the panel open
 //   DiskMenu --render out.png              # draws the item to a PNG and exits
 //   DiskMenu --spaces                      # prints the five spaces and exits
-//   DiskMenu --legend                      # prints the Spaces rows with their colours
+//   DiskMenu --legend                      # prints the Spaces rows, in order, with colours and bytes
 //   DiskMenu --report [folder] [--min-mb N]
 //                                          # prints the panel's list and exits; with a
 //                                          # folder, only that folder's tree
@@ -180,6 +180,36 @@ func volumeSpaces() -> [(title: String, bytes: Int64)] {
 
 /// Space macOS can free on its own (caches, iCloud copies, snapshots). The menu
 /// bar, like Finder, counts it as free; the panel's volumes count it as used.
+/// One row of the Spaces section under Used, as it stands now.
+struct SpaceRow {
+    let title: String
+    let color: NSColor
+    let colorName: String
+    let bytes: Int64
+    /// What the row's piece of the bar shows: my apps / files less its purgeable
+    /// part, which has a piece of its own.
+    let barBytes: Int64
+}
+
+/// The Spaces rows under Used, measured now: biggest first, Free always last. The
+/// panel and `--legend` both use this, so they cannot disagree.
+func spaceRowsNow() -> (used: Int64, total: Int64, rows: [SpaceRow])? {
+    guard let disk = containerSpaces(), disk.total > 0 else { return nil }
+    let purgeable = purgeableBytes()
+    let used = disk.total - disk.free
+    let volumes = disk.spaces.map(\.bytes)
+    let other = max(0, used - volumes.reduce(0, +))
+    let sizes = volumes + [other, purgeable, disk.free]  // one per spaceLegend entry
+    let data = spaceRoles.firstIndex { $0.roles.contains("Data") }
+    let rows = zip(spaceLegend, sizes).enumerated().map { index, entry in
+        SpaceRow(title: entry.0.title, color: entry.0.color, colorName: entry.0.colorName, bytes: entry.1,
+                 barBytes: index == data ? max(0, entry.1 - purgeable) : entry.1)
+    }
+    // Free is the legend's last entry; the rest go biggest first, ties in legend order.
+    let order = rows.indices.dropLast().sorted { (rows[$0].bytes, $1) > (rows[$1].bytes, $0) }
+    return (used, disk.total, order.map { rows[$0] } + [rows[rows.count - 1]])
+}
+
 func purgeableBytes() -> Int64 {
     guard let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [
         .volumeAvailableCapacityKey, .volumeAvailableCapacityForImportantUsageKey,
@@ -432,7 +462,10 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
     private let status = NSTextField(wrappingLabelWithString: "")
     private let usedRow = PanelRow("Used:")
     private let bar = SpaceBar()
-    private let spaceRows: [PanelRow] = spaceLegend.map { PanelRow($0.title + ":", color: $0.color) }
+    private let spaceRows: [String: PanelRow] = Dictionary(uniqueKeysWithValues: spaceLegend.map {
+        ($0.title, PanelRow($0.title + ":", color: $0.color))
+    })
+    private let spaceList = NSStackView()
     private var folders: [Entry] = []
     private(set) var scanning = false
     private var measuredAt: Date?
@@ -485,14 +518,18 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         body.addArrangedSubview(separatorView("Spaces"))
         body.addArrangedSubview(usedRow)
         body.addArrangedSubview(bar)
-        for row in spaceRows { body.addArrangedSubview(row) }
+        spaceList.orientation = .vertical
+        spaceList.alignment = .leading
+        spaceList.spacing = 0
+        spaceList.setViews(spaceLegend.compactMap { spaceRows[$0.title] }, in: .top)
+        body.addArrangedSubview(spaceList)
         let tips = [
             "other": "Space APFS keeps for its own bookkeeping, and any volume not listed above.",
             "Purgeable": "Part of my apps / files that macOS frees on its own when it needs room: caches, "
                 + "iCloud copies, snapshots. Counted as used here and as free in the menu bar, as Finder does.",
         ]
-        for (row, part) in zip(spaceRows, spaceLegend) { row.toolTip = tips[part.title] }
-        for row in spaceRows + [usedRow] { row.value.stringValue = "…" }
+        for (title, row) in spaceRows { row.toolTip = tips[title] }
+        for row in Array(spaceRows.values) + [usedRow] { row.value.stringValue = "…" }
         body.addArrangedSubview(separatorView("My apps / files"))
 
         // The name column takes whatever the fixed size column leaves.
@@ -618,25 +655,13 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
 
     func refreshSpaces() {
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let disk = containerSpaces(), disk.total > 0 else { return }
-            let purgeable = purgeableBytes()
+            guard let now = spaceRowsNow() else { return }
             DispatchQueue.main.async {
-                let used = disk.total - disk.free
-                let volumes = disk.spaces.map(\.bytes)
-                let other = max(0, used - volumes.reduce(0, +))
-                // One figure per legend entry, in its order.
-                let rows = volumes + [other, purgeable, disk.free]
-                for (row, bytes) in zip(self.spaceRows, rows) { row.value.stringValue = formatSize(bytes) }
-                self.usedRow.value.stringValue = formatSize(used)
-                // The bar shows purgeable space out of my apps / files, next to free;
-                // free is the rest of the line.
-                var pieces = rows
-                if let data = spaceRoles.firstIndex(where: { $0.roles.contains("Data") }) {
-                    pieces[data] = max(0, pieces[data] - purgeable)
-                }
-                self.bar.parts = zip(pieces, spaceLegend).dropLast().map { bytes, part in
-                    (Double(bytes) / Double(disk.total), part.color)
-                }
+                self.usedRow.value.stringValue = formatSize(now.used)
+                for row in now.rows { self.spaceRows[row.title]?.value.stringValue = formatSize(row.bytes) }
+                self.spaceList.setViews(now.rows.compactMap { self.spaceRows[$0.title] }, in: .top)
+                // The bar follows the rows' order; Free is the rest of the line.
+                self.bar.parts = now.rows.dropLast().map { (Double($0.barBytes) / Double(now.total), $0.color) }
             }
         }
     }
@@ -876,7 +901,8 @@ if arguments.contains("--render") {
     exit(render(to: path))
 }
 if arguments.contains("--legend") {
-    for part in spaceLegend { print(part.title + "\t" + part.colorName) }
+    guard let now = spaceRowsNow() else { exit(1) }
+    for row in now.rows { print([row.title, row.colorName, String(row.bytes)].joined(separator: "\t")) }
     exit(0)
 }
 if arguments.contains("--spaces") {

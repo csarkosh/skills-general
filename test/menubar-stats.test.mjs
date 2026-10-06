@@ -61,11 +61,14 @@ describe('menubar-stats', () => {
       assert.deepEqual([...readFileSync(png).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], 'writes a PNG');
     });
 
-    it('gives every Spaces row under Used a colour, in the panel\'s order', () => {
+    it('lists every Spaces row under Used with a colour, biggest first, Free last', () => {
       const rows = runOk(binary, ['--legend']).stdout.trim().split('\n').map((line) => line.split('\t'));
-      assert.deepEqual(rows.map(([title]) => title),
-        ['macOS system', 'update/boot', 'recovery', 'swap', 'my apps / files', 'other', 'Purgeable', 'Free']);
+      assert.deepEqual(rows.map(([title]) => title).sort(),
+        ['Free', 'Purgeable', 'macOS system', 'my apps / files', 'other', 'recovery', 'swap', 'update/boot']);
       for (const [title, color] of rows) assert.ok(color, `${title} has a colour`);
+      assert.equal(rows.at(-1)[0], 'Free', 'Free is always last');
+      const sizes = rows.slice(0, -1).map(([, , bytes]) => Number(bytes));
+      for (let i = 1; i < sizes.length; i++) assert.ok(sizes[i - 1] >= sizes[i], 'the rest go biggest first');
     });
 
     it('lists the five spaces in the panel\'s order', () => {

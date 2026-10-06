@@ -19,10 +19,12 @@ two-line "memory" widget shows free over used (people misread it as used over to
 
 Clicking Disk drops down a **Disk panel**, styled like Stats' panels. Its Spaces section is laid
 out like Stats' RAM details: Used, a line bar split by colour, then a coloured row for each part of
-the bar: macOS system (orange), update/boot (yellow), recovery (purple), swap (pink), my apps / files
-(blue), other (brown: APFS bookkeeping and any extra volume), Purgeable (teal) and Free (grey). The
-rows and the bar come from one list in `scripts/diskmenu.swift`, `spaceLegend`, so every row has a
-colour and the rows add up to Used; `DiskMenu --legend` prints it, and a test checks it. Below that, my apps / files is broken down into folders three
+the bar, biggest first with Free always last (the bar follows the same order): macOS system
+(orange), update/boot (yellow), recovery (purple), swap (pink), my apps / files (blue), other
+(brown: APFS bookkeeping and any extra volume), Purgeable (teal) and Free (grey). The rows and the
+bar come from one list in `scripts/diskmenu.swift`, `spaceLegend`, so every row has a colour and the
+rows add up to Used; `DiskMenu --legend` prints the rows as the panel orders them, and a test checks
+the colours and the order. Below that, my apps / files is broken down into folders three
 levels deep (100 MB and over, biggest first; an app is one row). It never
 opens private folders, so macOS never asks for access. Right-click for Quit.
 
