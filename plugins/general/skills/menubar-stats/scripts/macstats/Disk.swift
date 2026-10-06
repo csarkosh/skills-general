@@ -1,64 +1,11 @@
-// DiskMenu: a menu bar item showing the startup disk's used and total space as
-// "Disk" in small text over "215.9/245.1 GB", drawn like the "mini" widget of the
-// Stats app (a 7pt label over a 12pt value) so it sits beside Stats' CPU, GPU and
-// RAM items. Stats' own Disk widgets cannot put a label over custom text.
-//
-// Clicking it drops down a panel, styled like Stats' panels, listing where the
-// space goes: macOS system, update/boot, recovery, swap, and my apps / files, the
-// last broken down into folders three levels deep. Private folders (Desktop,
-// Documents, Downloads, other apps' data, Mail, Photos and the like) are never
-// opened, so macOS never asks for access to them. Right-clicking it shows Quit.
-//
-//   swiftc -O diskmenu.swift -o DiskMenu   # setup.sh builds it into DiskMenu.app
-//   DiskMenu                               # runs as a menu bar item
-//   DiskMenu --show-panel                  # runs, with the panel open
-//   DiskMenu --render out.png              # draws the item to a PNG and exits
-//   DiskMenu --spaces                      # prints the five spaces and exits
-//   DiskMenu --legend                      # prints the Spaces rows, in order, with colours and bytes
-//   DiskMenu --report [folder] [--min-mb N]
-//                                          # prints the panel's list and exits; with a
-//                                          # folder, only that folder's tree
+// The Disk menu bar item: the startup disk's used and total space as "Disk" over
+// "215.9/245.1 GB", and a panel listing where the space goes: the APFS volumes as
+// coloured rows and a line bar like Stats' RAM panel, then my apps / files broken
+// down into folders three levels deep. Private folders (Desktop, Documents,
+// Downloads, Music, Movies, other apps' data, Mail, Photos and the like) are never
+// opened, so macOS never asks for access to them.
 
 import Cocoa
-
-// MARK: - The menu bar item
-
-final class DiskView: NSView {
-    var label = "Disk"
-    var value = ""
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        let left = NSMutableParagraphStyle()
-        left.alignment = .left
-
-        // Positions copied from Stats' Mini widget: label at y 12, value at y 1.
-        NSAttributedString(string: label, attributes: [
-            .font: NSFont.systemFont(ofSize: 7, weight: .light),
-            .foregroundColor: isDarkMode ? NSColor.white : NSColor.textColor,
-            .paragraphStyle: left,
-        ]).draw(with: CGRect(x: 0, y: 12, width: bounds.width, height: 7))
-
-        NSAttributedString(string: value, attributes: [
-            .font: NSFont.systemFont(ofSize: 12, weight: .regular),
-            .foregroundColor: isDarkMode ? NSColor.white : NSColor.black,
-            .paragraphStyle: left,
-        ]).draw(with: CGRect(x: 0, y: 1, width: bounds.width, height: 13))
-    }
-
-    // Clicks go to the status item's button underneath.
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-    var isDarkMode: Bool {
-        effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-    }
-
-    func valueWidth() -> CGFloat {
-        ceil(NSAttributedString(string: value, attributes: [
-            .font: NSFont.systemFont(ofSize: 12, weight: .regular),
-        ]).size().width)
-    }
-}
 
 /// The figures Stats uses: free is the space available for important usage (it
 /// counts purgeable space as free), used is total minus free. Decimal gigabytes.
@@ -70,7 +17,7 @@ final class DiskSampler {
     private var purgeable: Int64 = 0
     private var lastFullRead = Date.distantPast
 
-    func sample() -> (value: String, free: String)? {
+    func sample() -> (total: Int64, free: Int64)? {
         let full = Date().timeIntervalSince(lastFullRead) >= 30
         var keys: Set<URLResourceKey> = [.volumeTotalCapacityKey, .volumeAvailableCapacityKey]
         if full { keys.insert(.volumeAvailableCapacityForImportantUsageKey) }
@@ -81,10 +28,16 @@ final class DiskSampler {
             purgeable = max(0, important - plain)
             lastFullRead = Date()
         }
-        let free = min(total, plain + purgeable)
-        let gb = { (bytes: Int64) in String(format: "%.1f", Double(bytes) / 1_000_000_000) }
-        return ("\(gb(total - free))/\(gb(total)) GB", "\(gb(free)) GB")
+        return (total, min(total, plain + purgeable))
     }
+}
+
+/// What the Disk item shows: used/total, and the free space for its tooltip.
+func diskItemText(_ sampler: DiskSampler) -> (value: String, tooltip: String)? {
+    guard let figures = sampler.sample() else { return nil }
+    let gb = { (bytes: Int64) in String(format: "%.1f", Double(bytes) / 1_000_000_000) }
+    return ("\(gb(figures.total - figures.free))/\(gb(figures.total)) GB",
+            "Free: \(gb(figures.free)) GB. Click for where the space goes.")
 }
 
 // MARK: - The five spaces
@@ -94,7 +47,7 @@ final class Entry {
     let title: String
     let path: String?
     var bytes: Int64
-    /// "private" for a folder DiskMenu does not open, "no access" for one macOS
+    /// "private" for a folder MacStats does not open, "no access" for one macOS
     /// would not let it read. Either way its size is unknown.
     var note: String?
     /// True when a folder inside this one was not counted, so the size is a minimum.
@@ -226,7 +179,7 @@ let folderDepth = 3
 let defaultMinimumBytes: Int64 = 100_000_000
 
 /// Folders in each home that macOS guards with a privacy prompt, or that hold a
-/// person's private data. DiskMenu never opens them: it lists them by name, and
+/// person's private data. MacStats never opens them: it lists them by name, and
 /// a folder holding one shows its size as a minimum (≥).
 let privateHomeFolders = [
     "Desktop", "Documents", "Downloads",
@@ -329,95 +282,9 @@ func formatSize(_ bytes: Int64) -> String {
         : String(format: "%.0f MB", Double(bytes) / 1_000_000)
 }
 
-// MARK: - The panel, styled like Stats' popups
+// MARK: - The panel
 
-/// Stats' popup sizes: 264 wide inside 8 of margin, a 42-high header, 22-high rows.
-enum Panel {
-    static let width: CGFloat = 264
-    static let margin: CGFloat = 8
-    static let header: CGFloat = 42
-    static let row: CGFloat = 22
-    static let foldersHeight: CGFloat = 22 * 15
-}
-
-/// A section caption like Stats': small spaced capitals between two lines.
-func separatorView(_ title: String) -> NSView {
-    let view = NSView()
-    view.translatesAutoresizingMaskIntoConstraints = false
-    let label = NSTextField(labelWithString: "")
-    label.translatesAutoresizingMaskIntoConstraints = false
-    label.attributedStringValue = NSAttributedString(string: title.uppercased(), attributes: [
-        .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
-        .foregroundColor: NSColor.tertiaryLabelColor,
-        .kern: 1.0,
-    ])
-    let left = NSBox(), right = NSBox()
-    for line in [left, right] {
-        line.boxType = .separator
-        line.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(line)
-    }
-    view.addSubview(label)
-    NSLayoutConstraint.activate([
-        view.heightAnchor.constraint(equalToConstant: 30),
-        view.widthAnchor.constraint(equalToConstant: Panel.width),
-        label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-        label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-        left.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-        left.trailingAnchor.constraint(equalTo: label.leadingAnchor, constant: -8),
-        left.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-        right.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
-        right.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-        right.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-    ])
-    return view
-}
-
-/// A label on the left in secondary text and a value on the right, like Stats' rows;
-/// with a colour, a 10-point rounded square before the label, as in its RAM panel.
-final class PanelRow: NSView {
-    let label = NSTextField(labelWithString: "")
-    let value = NSTextField(labelWithString: "")
-
-    init(_ title: String, color: NSColor? = nil) {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        label.stringValue = title
-        label.font = .systemFont(ofSize: 12)
-        label.textColor = .secondaryLabelColor
-        value.font = .systemFont(ofSize: 13)
-        value.alignment = .right
-        for field in [label, value] {
-            field.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(field)
-        }
-        if let color {
-            let block = NSView()
-            block.wantsLayer = true
-            block.layer?.backgroundColor = color.cgColor
-            block.layer?.cornerRadius = 3
-            block.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(block)
-            NSLayoutConstraint.activate([
-                block.widthAnchor.constraint(equalToConstant: 10),
-                block.heightAnchor.constraint(equalToConstant: 10),
-                block.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
-                block.centerYAnchor.constraint(equalTo: centerYAnchor),
-            ])
-        }
-        NSLayoutConstraint.activate([
-            heightAnchor.constraint(equalToConstant: Panel.row),
-            widthAnchor.constraint(equalToConstant: Panel.width),
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: color == nil ? 0 : 18),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            value.trailingAnchor.constraint(equalTo: trailingAnchor),
-            value.centerYAnchor.constraint(equalTo: centerYAnchor),
-            value.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 8),
-        ])
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-}
+let foldersHeight: CGFloat = 22 * 15
 
 /// A line bar split into coloured parts, drawn like Stats' horizontal bar chart: 10
 /// points high with corners rounded at 3, the rest of the line in faint grey.
@@ -452,7 +319,7 @@ final class SpaceBar: NSView {
     }
 }
 
-final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate {
+final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegate {
     let outline = NSOutlineView()
     /// Shown at the top of the empty folder list while measuring.
     private let measuring = NSTextField(wrappingLabelWithString: "")
@@ -471,48 +338,15 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
     private var measuredAt: Date?
 
     init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: Panel.width + Panel.margin * 2, height: 400),
-                   styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: true)
-        titleVisibility = .hidden
-        titlebarAppearsTransparent = true
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            standardWindowButton(button)?.isHidden = true
-        }
-        collectionBehavior = .moveToActiveSpace
-        isReleasedWhenClosed = false
-        hasShadow = true
-        delegate = self
+        super.init(title: "Disk")
+        setHeaderButtons(leading: headerButton("arrow.clockwise", "Measure again", #selector(refreshAll)),
+                         trailing: headerButton("internaldrive", "Open Storage settings", #selector(openStorageSettings)))
         build()
     }
 
     var isMeasured: Bool { measuredAt != nil && !scanning }
 
-    // Like Stats' popups, the panel closes when it stops being the key window.
-    func windowDidResignKey(_ notification: Notification) {
-        orderOut(nil)
-    }
-
     private func build() {
-        let background = NSVisualEffectView()
-        background.material = .popover
-        background.blendingMode = .behindWindow
-        background.state = .active
-        contentView = background
-
-        let refresh = headerButton("arrow.clockwise", "Measure again", #selector(refreshAll))
-        let storage = headerButton("internaldrive", "Open Storage settings", #selector(openStorageSettings))
-        let title = NSTextField(labelWithString: "Disk")
-        title.font = .systemFont(ofSize: 16)
-        title.alignment = .center
-        let header = NSStackView(views: [refresh, title, storage])
-        header.distribution = .equalCentering
-        header.translatesAutoresizingMaskIntoConstraints = false
-
-        let body = NSStackView()
-        body.orientation = .vertical
-        body.alignment = .leading
-        body.spacing = 0
-        body.translatesAutoresizingMaskIntoConstraints = false
         // Laid out like Stats' RAM details: Used, the bar, then a coloured row per
         // part of the bar, in the bar's order.
         body.addArrangedSubview(separatorView("Spaces"))
@@ -588,19 +422,9 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         body.setCustomSpacing(6, after: folderArea)
         body.addArrangedSubview(status)
 
-        background.addSubview(header)
-        background.addSubview(body)
         NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: background.topAnchor),
-            header.heightAnchor.constraint(equalToConstant: Panel.header),
-            header.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: Panel.margin),
-            header.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -Panel.margin),
-            body.topAnchor.constraint(equalTo: header.bottomAnchor),
-            body.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: Panel.margin),
-            body.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -Panel.margin),
-            body.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -Panel.margin),
             folderArea.widthAnchor.constraint(equalToConstant: Panel.width),
-            folderArea.heightAnchor.constraint(equalToConstant: Panel.foldersHeight),
+            folderArea.heightAnchor.constraint(equalToConstant: foldersHeight),
             scroll.leadingAnchor.constraint(equalTo: folderArea.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: folderArea.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: folderArea.topAnchor),
@@ -615,42 +439,9 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         updateStatus()
     }
 
-    /// Fits the panel to its contents, keeping its top edge where it is.
-    private func fitToContents() {
-        guard let content = contentView else { return }
-        content.layoutSubtreeIfNeeded()
-        let size = content.fittingSize
-        let top = frame.maxY
-        setFrame(NSRect(x: frame.minX, y: top - size.height, width: size.width, height: size.height), display: true)
-    }
-
-    private func headerButton(_ symbol: String, _ tip: String, _ action: Selector) -> NSButton {
-        let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: tip) ?? NSImage(),
-                              target: self, action: action)
-        button.isBordered = false
-        button.contentTintColor = .secondaryLabelColor
-        button.toolTip = tip
-        button.widthAnchor.constraint(equalToConstant: 24).isActive = true
-        return button
-    }
-
-    /// Opens under `button`, centred on it, kept on its screen: where Stats opens its panels.
-    func toggle(under button: NSStatusBarButton) {
-        if isVisible {
-            orderOut(nil)
-            return
-        }
+    override func willOpen() {
         refreshSpaces()
         if measuredAt.map({ Date().timeIntervalSince($0) > 600 }) ?? true { measureFolders() }
-        if let anchor = button.window?.frame {
-            var x = anchor.midX - frame.width / 2
-            if let screen = button.window?.screen ?? NSScreen.main {
-                x = min(max(x, screen.frame.minX + 3), screen.frame.maxX - frame.width - 3)
-            }
-            setFrameOrigin(NSPoint(x: x, y: anchor.minY - frame.height - 3))
-        }
-        if #available(macOS 14, *) { NSApp.activate() } else { NSApp.activate(ignoringOtherApps: true) }
-        makeKeyAndOrderFront(nil)
     }
 
     func refreshSpaces() {
@@ -767,103 +558,11 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
     }
 }
 
-// MARK: - The app
-
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var item: NSStatusItem!
-    private let view = DiskView()
-    private lazy var panel = DiskPanel()
-    private let menu = NSMenu()
-    private let sampler = DiskSampler()
-    private var timer: Timer?
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        item = NSStatusBar.system.statusItem(withLength: 40)
-        // The name macOS stores this item's place under, as
-        // "NSStatusItem Preferred Position DiskMenu" in this app's defaults.
-        item.autosaveName = "DiskMenu"
-        let menuBarHeight = NSApplication.shared.mainMenu?.menuBarHeight ?? 0
-        let height = (menuBarHeight == 0 ? 22 : menuBarHeight) - 4
-        view.frame = CGRect(x: 0, y: 2, width: 40, height: height)
-        item.button?.addSubview(view)
-        item.button?.image = NSImage()
-        item.button?.target = self
-        item.button?.action = #selector(clicked)
-        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
-
-        menu.addItem(NSMenuItem(title: "Quit DiskMenu", action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
-
-        refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.refresh() }
-        timer?.tolerance = 0.2
-        if CommandLine.arguments.contains("--show-panel") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.togglePanel() }
-        }
-    }
-
-    @objc private func clicked() {
-        if NSApp.currentEvent?.type == .rightMouseUp, let button = item.button {
-            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 4), in: button)
-        } else {
-            togglePanel()
-        }
-    }
-
-    private func togglePanel() {
-        if let button = item.button { panel.toggle(under: button) }
-    }
-
-    private func refresh() {
-        guard let figures = sampler.sample(), figures.value != view.value else { return }
-        view.value = figures.value
-        item.button?.toolTip = "Free: \(figures.free). Click for where the space goes."
-        let width = view.valueWidth()
-        view.setFrameSize(NSSize(width: width, height: view.frame.height))
-        item.length = width
-        view.needsDisplay = true
-    }
-}
-
 // MARK: - Command line
-
-// Draws the item, at 4x, on a dark menu bar, so its look can be checked without
-// Screen Recording permission.
-func render(to path: String) -> Int32 {
-    guard let figures = DiskSampler().sample() else {
-        FileHandle.standardError.write("Could not read the startup disk's capacity.\n".data(using: .utf8)!)
-        return 1
-    }
-    let view = DiskView()
-    view.value = figures.value
-    view.appearance = NSAppearance(named: .darkAqua)
-    let width = view.valueWidth()
-    let size = NSSize(width: width + 20, height: 22)
-    let scale: CGFloat = 4
-    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
-                               bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                               colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
-    rep.size = size
-    NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-    NSColor(white: 0.12, alpha: 1).setFill()
-    NSRect(origin: .zero, size: size).fill()
-    view.frame = CGRect(x: 10, y: 2, width: width, height: 18)
-    NSGraphicsContext.current!.cgContext.translateBy(x: 10, y: 2)
-    view.appearance!.performAsCurrentDrawingAppearance { view.draw(view.bounds) }
-    NSGraphicsContext.restoreGraphicsState()
-    do {
-        try rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: path))
-    } catch {
-        FileHandle.standardError.write("Could not write \(path): \(error.localizedDescription)\n".data(using: .utf8)!)
-        return 1
-    }
-    print(figures.value)
-    return 0
-}
 
 // Prints what the panel lists, as an indented tree. With a folder, prints only
 // that folder's tree, which keeps tests fast.
-func report(folder: String?, minimumBytes: Int64) -> Int32 {
+func diskReport(folder: String?, minimumBytes: Int64) -> Int32 {
     func printTree(_ entries: [Entry], indent: Int) {
         for entry in entries {
             print(String(repeating: "  ", count: indent) + entry.title + "\t" + entry.sizeText)
@@ -886,37 +585,3 @@ func report(folder: String?, minimumBytes: Int64) -> Int32 {
     return 0
 }
 
-let arguments = CommandLine.arguments
-func argument(after flag: String) -> String? {
-    guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count,
-          !arguments[index + 1].hasPrefix("--") else { return nil }
-    return arguments[index + 1]
-}
-
-if arguments.contains("--render") {
-    guard let path = argument(after: "--render") else {
-        FileHandle.standardError.write("usage: DiskMenu --render <out.png>\n".data(using: .utf8)!)
-        exit(2)
-    }
-    exit(render(to: path))
-}
-if arguments.contains("--legend") {
-    guard let now = spaceRowsNow() else { exit(1) }
-    for row in now.rows { print([row.title, row.colorName, String(row.bytes)].joined(separator: "\t")) }
-    exit(0)
-}
-if arguments.contains("--spaces") {
-    let spaces = volumeSpaces()
-    for space in spaces { print(space.title + "\t" + formatSize(space.bytes)) }
-    exit(spaces.isEmpty ? 1 : 0)
-}
-if arguments.contains("--report") {
-    let minimumBytes = argument(after: "--min-mb").flatMap(Int64.init).map { $0 * 1_000_000 } ?? defaultMinimumBytes
-    exit(report(folder: argument(after: "--report"), minimumBytes: minimumBytes))
-}
-
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.setActivationPolicy(.accessory)
-app.run()

@@ -7,7 +7,7 @@ Agent skills I share across my repositories, packaged as one plugin marketplace 
 
 | Plugin | For | Skills |
 | --- | --- | --- |
-| `general` | Claude Code and Codex | `doc-preview`: open a markdown doc as a styled page in Chrome<br>`search-console`: report a static site's Google indexing, sitemap and search performance<br>`linkedin`: profile, messages, invitations, notifications and contact settings on LinkedIn, quietly, in your signed-in browser<br>`recruiter-replies`: answer recruiter messages from your own preferences, sending only what you approve<br>`call-recorder`: record a call on macOS as two tracks and transcribe it locally with speaker labels, or transcribe a voice memo<br>`menubar-stats`: set up a Mac's menu bar with CPU, GPU, RAM, temperatures and disk used/total, grouped left-most, with a panel showing where the disk's space goes |
+| `general` | Claude Code and Codex | `doc-preview`: open a markdown doc as a styled page in Chrome<br>`search-console`: report a static site's Google indexing, sitemap and search performance<br>`linkedin`: profile, messages, invitations, notifications and contact settings on LinkedIn, quietly, in your signed-in browser<br>`recruiter-replies`: answer recruiter messages from your own preferences, sending only what you approve<br>`call-recorder`: record a call on macOS as two tracks and transcribe it locally with speaker labels, or transcribe a voice memo<br>`menubar-stats`: set up a Mac's menu bar with CPU, GPU, RAM, temperature and disk used/total, grouped left-most, with panels for every sensor and for where the disk's space goes |
 | `general-claude` | Claude Code only | `doc-artifact`: publish a markdown doc as a claude.ai Artifact |
 
 Each skill is a folder with a `SKILL.md` in the open [Agent Skills](https://agentskills.io)
@@ -20,7 +20,7 @@ Scripts carry their own dependencies, so a skill needs only Node — except thes
 - `call-recorder`: macOS on Apple Silicon, ffmpeg, Python 3.9 or newer with `mlx-whisper` in a
   venv, and the BlackHole 2ch audio driver for recording calls.
 - `menubar-stats`: macOS, Homebrew and the Xcode Command Line Tools (`xcode-select --install`);
-  its setup script installs the Stats app and builds the disk item with `swiftc`.
+  its setup script installs the Stats app and builds MacStats (the Temp and Disk items) with `swiftc`.
 
 ## Use it in a repository
 
