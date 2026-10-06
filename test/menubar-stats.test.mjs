@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, totalmem } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { ROOT, runOk, tempDir } from './helpers.mjs';
@@ -74,8 +74,9 @@ describe('menubar-stats', () => {
         const percent = Number(value(title)[0].replace('%', ''));
         assert.ok(percent >= 0 && percent <= 100, `${title} is a percentage`);
       }
-      const [inUse, allocated] = value('Memory').map(Number);
+      const [inUse, allocated, limit] = value('Memory').map(Number);
       assert.ok(inUse >= 0 && inUse <= allocated, 'GPU memory in use is within what is set aside');
+      assert.ok(limit > 0 && limit <= totalmem(), 'the GPU memory limit is at most the Mac\'s memory');
       assert.ok(value('Model')[0].length > 0, 'names the GPU');
       const apps = lines.slice(lines.indexOf('Top GPU apps') + 1).map((line) => Number(line.split('\t')[1].replace('%', '')));
       for (let i = 1; i < apps.length; i++) assert.ok(apps[i - 1] >= apps[i], 'the busiest app first');

@@ -275,6 +275,54 @@ final class SpaceBar: NSView {
     }
 }
 
+/// A row's history as a small filled area before its value (50 by 12 points, newest at
+/// the right, a sample a second), each sample a fraction of what a full bar stands for.
+final class Sparkline: NSView {
+    var fractions: [Double] = [] { didSet { needsDisplay = true } }
+    var capacity = 180
+    let color: NSColor
+
+    init(color: NSColor) {
+        self.color = color
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// Puts the sparkline in `row`, just before its value.
+    func place(in row: PanelRow) {
+        row.addSubview(self)
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: 50),
+            heightAnchor.constraint(equalToConstant: 12),
+            centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            trailingAnchor.constraint(equalTo: row.value.leadingAnchor, constant: -8),
+        ])
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let frame = NSBezierPath(roundedRect: bounds, xRadius: 2, yRadius: 2)
+        NSColor.lightGray.withAlphaComponent(0.15).setFill()
+        frame.fill()
+        guard fractions.count > 1 else { return }
+        let step = bounds.width / CGFloat(capacity - 1)
+        let x = { (index: Int) in self.bounds.maxX - CGFloat(self.fractions.count - 1 - index) * step }
+        let area = NSBezierPath()
+        area.move(to: CGPoint(x: x(0), y: bounds.minY))
+        for (index, fraction) in fractions.enumerated() {
+            area.line(to: CGPoint(x: x(index), y: bounds.minY + CGFloat(min(1, max(0, fraction))) * bounds.height))
+        }
+        area.line(to: CGPoint(x: x(fractions.count - 1), y: bounds.minY))
+        area.close()
+        NSGraphicsContext.saveGraphicsState()
+        frame.addClip()
+        color.setFill()
+        area.fill()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+}
+
 /// A gauge like Stats' RAM pressure gauge: a half circle in three equal green, yellow
 /// and red arcs and a blue needle, with a title and a second line under it. Unlike
 /// Stats', whose needle points at the middle of a band, the needle moves along it:

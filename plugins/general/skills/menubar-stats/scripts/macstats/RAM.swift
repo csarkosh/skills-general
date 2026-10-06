@@ -205,38 +205,6 @@ final class MemoryChart: NSView {
     }
 }
 
-/// Swap over the last three minutes, as a small purple area in the Swap row, scaled to
-/// the Mac's physical memory: its height is how far memory demand has spilled past it.
-/// (Swap has no fixed maximum to scale to: macOS adds 1 GB swap files as it needs them
-/// while the disk has room.)
-final class SwapSparkline: NSView {
-    var history: MemoryHistory?
-
-    override func draw(_ dirtyRect: NSRect) {
-        guard let history, history.samples.count > 1 else { return }
-        let samples = history.samples
-        let scale = samples[samples.count - 1].total
-        guard scale > 0 else { return }
-        let frame = NSBezierPath(roundedRect: bounds, xRadius: 2, yRadius: 2)
-        NSColor.lightGray.withAlphaComponent(0.15).setFill()
-        frame.fill()
-        let step = bounds.width / CGFloat(history.capacity - 1)
-        let x = { (index: Int) in self.bounds.maxX - CGFloat(samples.count - 1 - index) * step }
-        let area = NSBezierPath()
-        area.move(to: CGPoint(x: x(0), y: bounds.minY))
-        for index in samples.indices {
-            area.line(to: CGPoint(x: x(index), y: bounds.minY + CGFloat(samples[index].swap / scale) * bounds.height))
-        }
-        area.line(to: CGPoint(x: x(samples.count - 1), y: bounds.minY))
-        area.close()
-        NSGraphicsContext.saveGraphicsState()
-        frame.addClip()
-        swapColor.setFill()
-        area.fill()
-        NSGraphicsContext.restoreGraphicsState()
-    }
-}
-
 /// A Top Processes row: the process's icon, its name and its memory, as in Stats.
 final class ProcessRow: NSView {
     let icon = NSImageView()
@@ -281,7 +249,10 @@ final class RAMPanel: StatsPanel {
     private let bar = SpaceBar()
     private let partRows = memoryParts.map { PanelRow($0.title + ":", color: $0.color.withAlphaComponent($0.title == "Free" ? 0.5 : 1)) }
     private let swapRow = PanelRow("Swap:", color: swapColor)
-    private let swapSparkline = SwapSparkline()
+    // Swap over the last three minutes, scaled to the Mac's physical memory: its height
+    // is how far memory demand has spilled past it. (Swap has no fixed maximum to scale
+    // to: macOS adds 1 GB swap files as it needs them while the disk has room.)
+    private let swapSparkline = Sparkline(color: swapColor)
     private let processRows = (0..<8).map { _ in ProcessRow() }
     private var processTimer: Timer?
 
@@ -303,15 +274,8 @@ final class RAMPanel: StatsPanel {
         swapRow.toolTip = "Disk space macOS uses as overflow when memory runs short. It has no fixed maximum: "
             + "macOS adds 1 GB swap files as it needs them while the disk has room. The small graph compares it "
             + "with the Mac's memory: how far memory demand has spilled past it."
-        swapSparkline.history = history
-        swapSparkline.translatesAutoresizingMaskIntoConstraints = false
-        swapRow.addSubview(swapSparkline)
-        NSLayoutConstraint.activate([
-            swapSparkline.widthAnchor.constraint(equalToConstant: 50),
-            swapSparkline.heightAnchor.constraint(equalToConstant: 12),
-            swapSparkline.centerYAnchor.constraint(equalTo: swapRow.centerYAnchor),
-            swapSparkline.trailingAnchor.constraint(equalTo: swapRow.value.leadingAnchor, constant: -8),
-        ])
+        swapSparkline.capacity = history.capacity
+        swapSparkline.place(in: swapRow)
 
         body.addArrangedSubview(separatorView("Top processes"))
         let heading = ProcessRow()
@@ -329,7 +293,7 @@ final class RAMPanel: StatsPanel {
     /// Shows the latest sample: the chart, Used and its bar, the rows and Swap.
     func update(_ usage: MemoryUsage) {
         chart.needsDisplay = true
-        swapSparkline.needsDisplay = true
+        swapSparkline.fractions = history.samples.map { $0.swap / usage.total }
         usedRow.value.stringValue = formatMemory(usage.used)
         bar.parts = memoryParts.dropLast().map { ($0.value(usage) / usage.total, $0.color) }
         for (row, part) in zip(partRows, memoryParts) { row.value.stringValue = formatMemory(part.value(usage)) }

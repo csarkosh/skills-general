@@ -7,6 +7,7 @@
 
 import Cocoa
 import IOKit
+import Metal
 
 // MARK: - The accelerator
 
@@ -175,6 +176,13 @@ final class GPUSampler {
     }
 }
 
+/// The most memory macOS lets the GPU use (Metal's recommended working set: 12.7 GB of
+/// a 16 GB Mac), or all of the Mac's memory if Metal cannot say.
+let gpuMemoryLimit: Double = {
+    let limit = MTLCreateSystemDefaultDevice().map { Double($0.recommendedMaxWorkingSetSize) } ?? 0
+    return limit > 0 ? limit : Double(ProcessInfo.processInfo.physicalMemory)
+}()
+
 // MARK: - Apps using the GPU
 
 struct GPUApp {
@@ -246,6 +254,9 @@ let gpuSeries: [(title: String, color: NSColor, value: (GPUSample) -> Double)] =
     ("Renderer", .systemOrange, { $0.renderer }),
     ("Tiler", .systemPink, { $0.tiler }),
 ]
+
+/// The Memory row's colour and its sparkline's.
+let gpuMemoryColor = NSColor.systemTeal
 
 /// The last three minutes, a sample a second.
 final class GPUHistory {
@@ -347,7 +358,10 @@ final class GPUPanel: StatsPanel {
     private let seriesRows = gpuSeries.map { PanelRow($0.title + ":", color: $0.color) }
     private let neuralRow = PanelRow("ML engine:")
     private let fpsRow = PanelRow("FPS:")
-    private let memoryRow = PanelRow("Memory:")
+    private let memoryRow = PanelRow("Memory:", color: gpuMemoryColor)
+    // GPU memory in use over the last three minutes, scaled to the most macOS lets the
+    // GPU use, so the bar shows how close it is to its limit.
+    private let memorySparkline = Sparkline(color: gpuMemoryColor)
     private let appRows = (0..<8).map { _ in ProcessRow() }
     private let noApps = NSTextField(labelWithString: "Measuring…")
     private let appSampler = GPUAppSampler()
@@ -384,7 +398,8 @@ final class GPUPanel: StatsPanel {
         seriesRows[2].toolTip = "The share of time the GPU spent sorting geometry into tiles, before drawing."
         neuralRow.toolTip = "How busy the ML engine, Apple's machine-learning cores, is: its power against its peak, as Stats reads it."
         fpsRow.toolTip = "Frames the displays showed in the last second."
-        memoryRow.toolTip = "Memory the GPU is using now, out of what it has set aside."
+        memorySparkline.capacity = history.capacity
+        memorySparkline.place(in: memoryRow)
 
         body.addArrangedSubview(separatorView("Details"))
         let model = PanelRow("Model:")
@@ -427,7 +442,10 @@ final class GPUPanel: StatsPanel {
         for (row, series) in zip(seriesRows, gpuSeries) { row.value.stringValue = formatPercent(series.value(sample)) }
         neuralRow.value.stringValue = sample.neuralEngine.map(formatPercent) ?? "–"
         fpsRow.value.stringValue = sample.fps.map { String(format: "%.0f", $0) } ?? "–"
-        memoryRow.value.stringValue = "\(formatMemory(sample.memoryInUse)) of \(formatMemory(sample.memoryAllocated))"
+        memoryRow.value.stringValue = formatMemory(sample.memoryInUse)
+        memorySparkline.fractions = history.samples.map { $0.memoryInUse / gpuMemoryLimit }
+        memoryRow.toolTip = "Memory the GPU is using now; it holds \(formatMemory(sample.memoryAllocated)) set aside. "
+            + "The small graph shows the last three minutes against the \(formatMemory(gpuMemoryLimit)) macOS lets the GPU use."
     }
 
     override func willOpen() {
@@ -483,7 +501,7 @@ func gpuReport() -> Int32 {
     for series in gpuSeries { print(series.title + "\t" + formatPercent(series.value(sample))) }
     print("ML engine\t" + (sample.neuralEngine.map(formatPercent) ?? "–"))
     print("FPS\t" + (sample.fps.map { String(format: "%.0f", $0) } ?? "–"))
-    print("Memory\t" + String(Int64(sample.memoryInUse)) + "\t" + String(Int64(sample.memoryAllocated)))
+    print("Memory\t" + String(Int64(sample.memoryInUse)) + "\t" + String(Int64(sample.memoryAllocated)) + "\t" + String(Int64(gpuMemoryLimit)))
     print("Details")
     let info = gpuInfo()
     print("Model\t" + (info?.model ?? "Unknown"))
