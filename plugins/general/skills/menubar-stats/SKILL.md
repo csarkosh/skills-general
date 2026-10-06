@@ -101,7 +101,7 @@ Two gauges like Temp's: utilization on Stats' own zones (normal below 60%, busy 
 from 80%) and the GPU's temperature on the chip's limits. **Usage**: a three-minute chart with
 utilization as a blue area and Renderer and Tiler as orange and pink lines (on Apple silicon the
 three move together), then those three rows in the same colours, ML engine, FPS and Memory
-(teal: what the GPU is using now, with a sparkline of the last three minutes scaled to the most
+(what the GPU is using now, with a teal sparkline of the last three minutes scaled to the most
 macOS lets the GPU use, Metal's recommended working set, 12.7 GB of a 16 GB Mac; the tooltip
 adds what it holds set aside). **Details**: model and cores. **Top GPU apps**: each
 app's share of GPU time over the last two seconds, as Activity Monitor's "% GPU" counts it,

@@ -255,7 +255,8 @@ let gpuSeries: [(title: String, color: NSColor, value: (GPUSample) -> Double)] =
     ("Tiler", .systemPink, { $0.tiler }),
 ]
 
-/// The Memory row's colour and its sparkline's.
+/// The Memory sparkline's colour. The row itself has no colour dot: the dots key the
+/// rows to the chart, and memory is not in it.
 let gpuMemoryColor = NSColor.systemTeal
 
 /// The last three minutes, a sample a second.
@@ -358,7 +359,7 @@ final class GPUPanel: StatsPanel {
     private let seriesRows = gpuSeries.map { PanelRow($0.title + ":", color: $0.color) }
     private let neuralRow = PanelRow("ML engine:")
     private let fpsRow = PanelRow("FPS:")
-    private let memoryRow = PanelRow("Memory:", color: gpuMemoryColor)
+    private let memoryRow = PanelRow("Memory:")
     // GPU memory in use over the last three minutes, scaled to the most macOS lets the
     // GPU use, so the bar shows how close it is to its limit.
     private let memorySparkline = Sparkline(color: gpuMemoryColor)
