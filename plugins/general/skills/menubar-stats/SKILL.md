@@ -7,9 +7,9 @@ description: Use when the user wants CPU, GPU, RAM, disk space or temperature sh
 
 This skill reproduces one layout, left-most in the menu bar and in this order:
 
-| CPU | GPU | RAM | Disk | then: CPU and GPU temperature |
+| CPU | GPU | RAM | Temperature | Disk |
 |---|---|---|---|---|
-| `CPU` over `12%` | `GPU` over `84%` | `RAM` over `89%` | `Disk` over `215.9/245.1 GB` (used/total) | `153°` over `151°` |
+| `CPU` over `12%` | `GPU` over `84%` | `RAM` over `89%` | `153°` over `151°` (CPU, GPU) | `Disk` over `215.9/245.1 GB` (used/total) |
 
 CPU, GPU, RAM and the temperatures come from **Stats** (free, `brew install --cask stats`).
 The Disk item is **DiskMenu**, about 100 lines of Swift in `scripts/diskmenu.swift`, built on the
@@ -55,13 +55,13 @@ when it starts, so restart the app after writing it.
 | Item | Defaults domain | Name | Value |
 |---|---|---|---|
 | CPU, GPU, RAM | `eu.exelban.Stats` | `CPU_mini`, `GPU_mini`, `RAM_mini` | 1300, 1250, 1200 |
-| Disk | `sh.csarko.DiskMenu` | `DiskMenu` | 1150 |
-| Temperatures | `eu.exelban.Stats` | `Sensors_sensors` | 500 |
+| Temperatures | `eu.exelban.Stats` | `Sensors_sensors` | 1150 |
+| Disk | `sh.csarko.DiskMenu` | `DiskMenu` | 1100 |
 | Zoom | `us.zoom.xos` | `Item-0` | 450 (the script writes it only if Zoom is installed) |
 
 An app that never saved a place lands wherever there is room, often inside the group. To fix
 another app: find its item name with the order script below (`Item-0` when the app never named
-its item), get its domain with `osascript -e 'id of app "Name"'`, write a value under 1150, and
+its item), get its domain with `osascript -e 'id of app "Name"'`, write a value under 1100, and
 restart that app. ⌘-dragging an icon also saves a place.
 
 ## Check it without screenshots
@@ -73,7 +73,7 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
   name. On macOS 26 every owner is "Control Center" and the names are the ones in the table
   above. The group is unbroken when each x is the previous x plus its width. Without Screen
   Recording permission the names may be blank; tell the items apart by width (CPU, GPU, RAM
-  about 47, Disk about 100, temperatures about 44, Zoom about 32). It prints nothing while an
+  about 47, temperatures about 44, Disk about 100, Zoom about 32). It prints nothing while an
   app is in full screen.
 - `~/Applications/DiskMenu.app/Contents/MacOS/DiskMenu --render /tmp/diskmenu.png` draws the
   Disk item to a PNG; open the image to look at it.

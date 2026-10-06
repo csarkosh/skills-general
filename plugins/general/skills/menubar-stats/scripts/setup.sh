@@ -1,7 +1,7 @@
 #!/bin/bash
-# Sets up the menu bar stats group on a Mac: CPU, GPU, RAM (the Stats app) and
-# Disk used/total (DiskMenu, built here), left-most in that order, with the CPU and
-# GPU temperatures to their right. Safe to run again: it rewrites the same settings.
+# Sets up the menu bar stats group on a Mac, left-most in this order: CPU, GPU, RAM
+# and the CPU and GPU temperatures (the Stats app), then Disk used/total (DiskMenu,
+# built here). Safe to run again: it rewrites the same settings.
 #
 #   bash setup.sh              # install or repair
 #   bash setup.sh --uninstall  # remove DiskMenu and the login agents (Stats stays)
@@ -108,14 +108,14 @@ defaults write "$STATS" keep_menubar_positions -bool true
 defaults write "$STATS" "$POS CPU_mini" -float 1300
 defaults write "$STATS" "$POS GPU_mini" -float 1250
 defaults write "$STATS" "$POS RAM_mini" -float 1200
-defaults write sh.csarko.DiskMenu "$POS DiskMenu" -float 1150
-defaults write "$STATS" "$POS Sensors_sensors" -float 500
+defaults write "$STATS" "$POS Sensors_sensors" -float 1150
+defaults write sh.csarko.DiskMenu "$POS DiskMenu" -float 1100
 # Zoom never names its item, so it is "Item-0". Without a saved place it lands
 # wherever it fits, often inside the group. It reads this when it next starts.
 ZOOM_NOTE=""
 if [ -d /Applications/zoom.us.app ] || [ -d "$HOME/Applications/zoom.us.app" ]; then
   defaults write us.zoom.xos "$POS Item-0" -float 450
-  pgrep -xq zoom.us && ZOOM_NOTE="Zoom is running: if its icon (Item-0) is listed before Sensors_sensors, quit and reopen Zoom to move it out of the group."
+  pgrep -xq zoom.us && ZOOM_NOTE="Zoom is running: if its icon (Item-0) is listed before DiskMenu, quit and reopen Zoom to move it out of the group."
 fi
 
 # 4. DiskMenu: build it into ~/Applications.
@@ -152,6 +152,6 @@ sleep 8
 say "Menu bar, left to right (x, width, owner, item):"
 xcrun swift "$DIR/menubar-order.swift" || say "(could not list the menu bar items)"
 say ""
-say "Expected first: CPU_mini, GPU_mini, RAM_mini, DiskMenu, then Sensors_sensors (widths about 47, 47, 47, 100, 44)."
+say "Expected first: CPU_mini, GPU_mini, RAM_mini, Sensors_sensors, DiskMenu (widths about 47, 47, 47, 44, 100)."
 say "On the first launch macOS may ask whether to open Stats, an app downloaded from the internet: click Open."
 [ -z "$ZOOM_NOTE" ] || say "$ZOOM_NOTE"

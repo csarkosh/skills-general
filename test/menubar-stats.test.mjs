@@ -29,13 +29,13 @@ describe('menubar-stats', () => {
     runOk('bash', ['-n', join(SCRIPTS, 'setup.sh')]);
   });
 
-  it('places CPU, GPU, RAM and Disk left-most in that order, then the temperatures, then Zoom', () => {
+  it('places CPU, GPU, RAM, the temperatures and Disk left-most in that order, then Zoom', () => {
     const position = (name) => {
       const match = new RegExp(`"\\$POS ${name}" -float (\\d+)`).exec(setup);
       assert.ok(match, `setup.sh saves a position for ${name}`);
       return Number(match[1]);
     };
-    const order = ['CPU_mini', 'GPU_mini', 'RAM_mini', 'DiskMenu', 'Sensors_sensors', 'Item-0'].map(position);
+    const order = ['CPU_mini', 'GPU_mini', 'RAM_mini', 'Sensors_sensors', 'DiskMenu', 'Item-0'].map(position);
     for (let i = 1; i < order.length; i++) assert.ok(order[i - 1] > order[i], 'a larger number sits further left');
   });
 
