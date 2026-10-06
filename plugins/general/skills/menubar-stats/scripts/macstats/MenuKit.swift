@@ -314,7 +314,9 @@ class StatsPanel: NSWindow, NSWindowDelegate {
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             standardWindowButton(button)?.isHidden = true
         }
-        collectionBehavior = .moveToActiveSpace
+        // Menu level: above every ordinary window, whichever app is in front, as menus are.
+        level = .popUpMenu
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
         hasShadow = true
         delegate = self
@@ -370,8 +372,25 @@ class StatsPanel: NSWindow, NSWindowDelegate {
         return view
     }
 
+    /// The MacStats panel that is open, if any: opening one closes the other.
+    private static weak var openPanel: StatsPanel?
+    /// Watches clicks in other apps while the panel is open, to close it on one. Mouse
+    /// clicks need no permission to watch (only keystrokes would).
+    private var outsideClicks: Any?
+    private var dismissedAt = Date.distantPast
+
     func windowDidResignKey(_ notification: Notification) {
+        dismiss()
+    }
+
+    /// Closes the panel, as a click outside it or on its item does.
+    func dismiss() {
+        guard isVisible else { return }
         orderOut(nil)
+        dismissedAt = Date()
+        if let outsideClicks { NSEvent.removeMonitor(outsideClicks) }
+        outsideClicks = nil
+        if StatsPanel.openPanel === self { StatsPanel.openPanel = nil }
     }
 
     /// Called before the panel opens; a subclass refreshes what it shows.
@@ -379,10 +398,13 @@ class StatsPanel: NSWindow, NSWindowDelegate {
 
     /// Opens under `button`, centred on it, kept on its screen: where Stats opens its panels.
     func toggle(under button: NSStatusBarButton) {
-        if isVisible {
-            orderOut(nil)
+        // A click on the item first takes focus from the open panel, which closes it;
+        // that same click must not open it again.
+        if isVisible || Date().timeIntervalSince(dismissedAt) < 0.3 {
+            dismiss()
             return
         }
+        StatsPanel.openPanel?.dismiss()
         willOpen()
         fitToContents()
         if let anchor = button.window?.frame {
@@ -394,6 +416,13 @@ class StatsPanel: NSWindow, NSWindowDelegate {
         }
         if #available(macOS 14, *) { NSApp.activate() } else { NSApp.activate(ignoringOtherApps: true) }
         makeKeyAndOrderFront(nil)
+        // If macOS declines to bring MacStats forward (another app has focus), show the
+        // panel on top anyway.
+        orderFrontRegardless()
+        StatsPanel.openPanel = self
+        outsideClicks = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
+            [weak self] _ in self?.dismiss()
+        }
     }
 
     /// Fits the panel to its contents, keeping its top edge where it is.

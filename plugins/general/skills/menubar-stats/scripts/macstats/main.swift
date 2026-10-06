@@ -5,7 +5,7 @@
 //
 //   swiftc -O *.swift -o MacStats           # setup.sh builds it into MacStats.app
 //   MacStats                                # runs both menu bar items
-//   MacStats --show-panel temp|disk         # runs, with that item's panel open
+//   MacStats --show-panel temp|disk[,…]     # runs, opening those panels in turn, as clicks would
 //   MacStats --render temp|disk out.png     # draws that menu bar item to a PNG and exits
 //                                           # (with --alert, Temp as it looks when hot)
 //   MacStats --sensors                      # prints the Temp panel and exits
@@ -34,8 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Every second, like Stats' CPU and GPU.
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.refresh() }
         timer?.tolerance = 0.2
-        if let which = argument(after: "--show-panel") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [unowned self] in
+        // "--show-panel disk,temp" opens each in turn, two seconds apart, as clicks would.
+        for (index, which) in (argument(after: "--show-panel") ?? "").split(separator: ",").enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1 + 2 * Double(index)) { [unowned self] in
                 if which == "temp", let button = temp.button { tempPanel.toggle(under: button) }
                 if which == "disk", let button = disk.button { diskPanel.toggle(under: button) }
             }

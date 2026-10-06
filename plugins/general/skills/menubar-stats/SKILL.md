@@ -16,8 +16,9 @@ CPU, GPU and RAM come from **Stats** (free, `brew install --cask stats`). Temp a
 Disk widgets cannot put a label over custom text, and its temperature list repeats every sensor
 ("CPU efficiency core 1" to "4", "GPU 1" to "8"). Both MacStats items update every second, like
 Stats' CPU and GPU, together for under 0.5% of one core, and both drop down a panel styled like
-Stats'.
-Right-click either for Quit.
+Stats'. A panel opens at menu level, above every window whichever app is in front; opening one
+closes the other; a click anywhere outside it closes it (watching mouse clicks needs no
+permission). Right-click either for Quit.
 
 Each feature is one file, so a later App Store edition can leave one out (the sandbox forbids the
 SMC reads and the disk-wide folder walk): `MenuKit.swift` (the item and the panel's look, shared),
@@ -91,7 +92,7 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 From a terminal, `MacStats --sensors` prints the Temp panel, `--weigh 49.8 53.0 …` prints those
 temperatures' weighted value, `--spaces` the disk's five volumes, `--legend` the Disk panel's
 Spaces rows in order, `--report` its folders (add a folder to list only it, and `--min-mb N` to
-change the cut-off), and `--show-panel temp|disk` starts it with that panel open.
+change the cut-off), and `--show-panel temp|disk[,…]` starts it and opens those panels in turn, as clicks would.
 
 ## The Temp panel
 
