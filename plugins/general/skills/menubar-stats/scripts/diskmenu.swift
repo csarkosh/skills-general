@@ -454,7 +454,7 @@ final class SpaceBar: NSView {
 
 final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate {
     let outline = NSOutlineView()
-    /// Shown over the empty folder list while measuring, a quarter of the way down.
+    /// Shown at the top of the empty folder list while measuring.
     private let measuring = NSTextField(wrappingLabelWithString: "")
     private let spinner = NSProgressIndicator()
     private let measuringNote = NSStackView()
@@ -562,8 +562,8 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         scroll.autohidesScrollers = true
         scroll.translatesAutoresizingMaskIntoConstraints = false
 
-        // While measuring, the list is empty and the measuring note sits a quarter
-        // of the way down it; once measured, the time it was measured shows under it.
+        // While measuring, the list is empty and the measuring note sits at its top,
+        // a little below the caption; once measured, the time shows under the list.
         spinner.style = .spinning
         spinner.controlSize = .small
         for text in [measuring, status] {
@@ -607,7 +607,7 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
             scroll.bottomAnchor.constraint(equalTo: folderArea.bottomAnchor),
             measuringNote.leadingAnchor.constraint(equalTo: folderArea.leadingAnchor),
             measuringNote.trailingAnchor.constraint(equalTo: folderArea.trailingAnchor),
-            measuringNote.topAnchor.constraint(equalTo: folderArea.topAnchor, constant: Panel.foldersHeight / 4),
+            measuringNote.topAnchor.constraint(equalTo: folderArea.topAnchor, constant: 12),
             // Room for its line, kept while measuring, so the panel does not jump.
             status.widthAnchor.constraint(equalToConstant: Panel.width),
             status.heightAnchor.constraint(equalToConstant: 14),
