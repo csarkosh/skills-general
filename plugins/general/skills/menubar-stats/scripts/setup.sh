@@ -115,7 +115,7 @@ defaults write "$STATS" "$POS Sensors_sensors" -float 500
 ZOOM_NOTE=""
 if [ -d /Applications/zoom.us.app ] || [ -d "$HOME/Applications/zoom.us.app" ]; then
   defaults write us.zoom.xos "$POS Item-0" -float 450
-  pgrep -xq zoom.us && ZOOM_NOTE="Zoom is running: its icon moves out of the group the next time Zoom is quit and reopened."
+  pgrep -xq zoom.us && ZOOM_NOTE="Zoom is running: if its icon (Item-0) is listed before Sensors_sensors, quit and reopen Zoom to move it out of the group."
 fi
 
 # 4. DiskMenu: build it into ~/Applications.
