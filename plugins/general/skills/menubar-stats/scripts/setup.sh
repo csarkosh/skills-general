@@ -1,6 +1,6 @@
 #!/bin/bash
-# Sets up the menu bar stats group on a Mac, left-most in this order: CPU, GPU and RAM
-# (the Stats app), then Temp and Disk (MacStats, built here from macstats/). Safe to
+# Sets up the menu bar stats group on a Mac, left-most in this order: CPU and GPU (the
+# Stats app), then RAM, Temp and Disk (MacStats, built here from macstats/). Safe to
 # run again: it rewrites the same settings. It also replaces DiskMenu, MacStats' older
 # Disk-only form, if this Mac has it.
 #
@@ -89,15 +89,15 @@ if [ ! -d /Applications/Stats.app ]; then
 fi
 [ "$(uname -m)" = arm64 ] || say "Note: tested on Apple silicon; an Intel Mac's sensors come from the same catalog but are untested."
 
-# 2. Stats: CPU, GPU and RAM as mini widgets (small label over a value), and nothing
-# else: MacStats shows temperatures and the disk. Stats reads its settings only when
+# 2. Stats: CPU and GPU as mini widgets (small label over a value), and nothing else:
+# MacStats shows memory, temperatures and the disk. Stats reads its settings only when
 # it starts, so stop it, write them, and start it again.
 stop_app Stats
-for module in CPU GPU RAM; do
+for module in CPU GPU; do
   defaults write "$STATS" "${module}_state" -bool true
   defaults write "$STATS" "${module}_widget" -string mini
 done
-for module in Sensors Disk Network Battery Bluetooth Clock; do
+for module in RAM Sensors Disk Network Battery Bluetooth Clock; do
   defaults write "$STATS" "${module}_state" -bool false
 done
 # Skip Stats' first-run window: its preset page overwrites the modules chosen above.
@@ -109,7 +109,7 @@ defaults write "$STATS" keep_menubar_positions -bool true
 # <name>" in the owning app's settings; a larger number sits further left.
 defaults write "$STATS" "$POS CPU_mini" -float 1300
 defaults write "$STATS" "$POS GPU_mini" -float 1250
-defaults write "$STATS" "$POS RAM_mini" -float 1200
+defaults write sh.csarko.MacStats "$POS MacStatsRAM" -float 1200
 defaults write sh.csarko.MacStats "$POS MacStatsTemp" -float 1150
 defaults write sh.csarko.MacStats "$POS MacStatsDisk" -float 1100
 # Zoom never names its item, so it is "Item-0". Without a saved place it lands
@@ -171,6 +171,6 @@ sleep 8
 say "Menu bar, left to right (x, width, owner, item):"
 xcrun swift "$DIR/menubar-order.swift" || say "(could not list the menu bar items)"
 say ""
-say "Expected first: CPU_mini, GPU_mini, RAM_mini, MacStatsTemp, MacStatsDisk (widths about 47, 47, 47, 45, 100)."
+say "Expected first: CPU_mini, GPU_mini, MacStatsRAM, MacStatsTemp, MacStatsDisk (widths about 47, 47, 43, 45, 100)."
 say "On the first launch macOS may ask whether to open Stats, an app downloaded from the internet: click Open."
 [ -z "$ZOOM_NOTE" ] || say "$ZOOM_NOTE"

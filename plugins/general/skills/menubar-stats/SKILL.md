@@ -9,12 +9,13 @@ This skill reproduces one layout, left-most in the menu bar and in this order:
 
 | CPU | GPU | RAM | Temp | Disk |
 |---|---|---|---|---|
-| `CPU` over `12%` | `GPU` over `84%` | `RAM` over `89%` | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk` over `215.9/245.1 GB` (used/total) |
+| `CPU` over `12%` | `GPU` over `84%` | `RAM` over `89%` (memory in use) | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk` over `215.9/245.1 GB` (used/total) |
 
-CPU, GPU and RAM come from **Stats** (free, `brew install --cask stats`). Temp and Disk come from
-**MacStats**, a small Swift app in `scripts/macstats/`, built on the Mac. Stats cannot draw them: its
-Disk widgets cannot put a label over custom text, and its temperature list repeats every sensor
-("CPU efficiency core 1" to "4", "GPU 1" to "8"). Both MacStats items update every second, like
+CPU and GPU come from **Stats** (free, `brew install --cask stats`). RAM, Temp and Disk come from
+**MacStats**, a small Swift app in `scripts/macstats/`, built on the Mac. Stats cannot draw them as
+wanted: its Disk widgets cannot put a label over custom text, its temperature list repeats every
+sensor ("CPU efficiency core 1" to "4", "GPU 1" to "8"), and its RAM history chart shows only used
+and free. Both MacStats items update every second, like
 Stats' CPU and GPU, together for under 0.5% of one core, and both drop down a panel styled like
 Stats'. A panel opens at menu level, above every window whichever app is in front; opening one
 closes the other; a click anywhere outside it closes it (watching mouse clicks needs no
@@ -22,7 +23,7 @@ permission). Right-click either for Quit.
 
 Each feature is one file, so a later App Store edition can leave one out (the sandbox forbids the
 SMC reads and the disk-wide folder walk): `MenuKit.swift` (the item and the panel's look, shared),
-`Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
+`RAM.swift`, `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
 `Battery.swift` (the battery's charge, for Temp's Power section), and `main.swift` (starts both,
 and the command line). `SMC.swift` and `SensorCatalog.swift` are adapted
 from Stats (MIT); its licence is `scripts/macstats/LICENSE-stats.txt`.
@@ -44,13 +45,13 @@ the user must run that command themselves at a real terminal:
 |---|---|---|
 | Homebrew | installs Stats | the official one-liner from brew.sh, which asks for the user's password; its "Next steps" put `brew` on the PATH |
 | Xcode Command Line Tools | `swiftc` builds MacStats | `xcode-select --install`, then click Install (Homebrew's installer usually installs them already) |
-| Stats | CPU, GPU, RAM | the script runs `brew install --cask stats` itself |
+| Stats | CPU, GPU | the script runs `brew install --cask stats` itself |
 
 Also for the user: on its first launch macOS may ask whether to open Stats, an app downloaded
 from the internet (click Open), and a "Background Items Added" notice for the login agents is
 information only. Install nothing the user did not ask for.
 
-The script stops and restarts Stats and MacStats, writes their settings (Stats' Sensors and Disk
+The script stops and restarts Stats and MacStats, writes their settings (Stats' RAM, Sensors and Disk
 modules off), adds login agents `sh.csarko.stats-at-login` and `sh.csarko.macstats`
 (`~/Library/LaunchAgents`), replaces DiskMenu (MacStats' older Disk-only form) if the Mac has it,
 and then prints the menu bar's order. It rebuilds MacStats only when its source changed. It never
@@ -66,8 +67,8 @@ when it starts, so restart the app after writing it.
 
 | Item | Defaults domain | Name | Value |
 |---|---|---|---|
-| CPU, GPU, RAM | `eu.exelban.Stats` | `CPU_mini`, `GPU_mini`, `RAM_mini` | 1300, 1250, 1200 |
-| Temp, Disk | `sh.csarko.MacStats` | `MacStatsTemp`, `MacStatsDisk` | 1150, 1100 |
+| CPU, GPU | `eu.exelban.Stats` | `CPU_mini`, `GPU_mini` | 1300, 1250 |
+| RAM, Temp, Disk | `sh.csarko.MacStats` | `MacStatsRAM`, `MacStatsTemp`, `MacStatsDisk` | 1200, 1150, 1100 |
 | Zoom | `us.zoom.xos` | `Item-0` | 450 (the script writes it only if Zoom is installed) |
 
 An app that never saved a place lands wherever there is room, often inside the group. To fix
@@ -83,16 +84,28 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 - `swift scripts/menubar-order.swift` prints the status items left to right: x, width, owner,
   name. On macOS 26 every owner is "Control Center" and the names are the ones in the table
   above. The group is unbroken when each x is the previous x plus its width. Without Screen
-  Recording permission the names may be blank; tell the items apart by width (CPU, GPU, RAM
-  about 47, Temp about 45, Disk about 100, Zoom about 32). It prints nothing while an app is in
+  Recording permission the names may be blank; tell the items apart by width (CPU, GPU about 47,
+  RAM about 43, Temp about 45, Disk about 100, Zoom about 32). It prints nothing while an app is in
   full screen.
-- `MacStats --render temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
+- `MacStats --render ram|temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
   draws that item to a PNG; open the image to look at it.
 
-From a terminal, `MacStats --sensors` prints the Temp panel, `--weigh 49.8 53.0 …` prints those
+From a terminal, `MacStats --memory` prints the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
 temperatures' weighted value, `--spaces` the disk's five volumes, `--legend` the Disk panel's
 Spaces rows in order, `--report` its folders (add a folder to list only it, and `--min-mb N` to
 change the cut-off), and `--show-panel temp|disk[,…]` starts it and opens those panels in turn, as clicks would.
+
+## The RAM panel
+
+Stats' RAM panel without its gauges, in two sections. **Usage** opens with Stats' usage history
+chart (the last three minutes, a sample a second), but with a band per part instead of one for
+used: App (blue), Wired (orange) and Compressed (pink) stacked from the bottom and Free (grey) on
+top, in the same colours as the rows. Then Used with its bar, a row per part and Swap. The
+figures are Stats': used is active, inactive, speculative, wired and compressed pages less
+purgeable and file-backed ones, App is used less Wired and Compressed, Free is the rest, all in
+the binary units macOS uses for memory. **Top processes** lists the eight processes using the
+most memory, from `top -l 1 -o mem` as Stats reads them, refreshed every two seconds while the
+panel is open; the header's icon opens Activity Monitor.
 
 ## The Temp panel
 

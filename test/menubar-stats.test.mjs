@@ -43,7 +43,7 @@ describe('menubar-stats', () => {
       assert.ok(match, `setup.sh saves a position for ${name}`);
       return Number(match[1]);
     };
-    const order = ['CPU_mini', 'GPU_mini', 'RAM_mini', 'MacStatsTemp', 'MacStatsDisk', 'Item-0'].map(position);
+    const order = ['CPU_mini', 'GPU_mini', 'MacStatsRAM', 'MacStatsTemp', 'MacStatsDisk', 'Item-0'].map(position);
     for (let i = 1; i < order.length; i++) assert.ok(order[i - 1] > order[i], 'a larger number sits further left');
   });
 
@@ -60,6 +60,26 @@ describe('menubar-stats', () => {
     after(() => rmSync(dirname(binary), { recursive: true, force: true }));
 
     const isPng = (path) => assert.deepEqual([...readFileSync(path).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], 'writes a PNG');
+
+    it('renders the RAM item as the share of memory in use', (t) => {
+      const png = join(tempDir(t, 'macstats-png'), 'ram.png');
+      assert.match(runOk(binary, ['--render', 'ram', png]).stdout, /^\d+%\n$/);
+      isPng(png);
+    });
+
+    it('splits memory into App, Wired, Compressed and Free, and lists the top processes', () => {
+      const lines = runOk(binary, ['--memory']).stdout.trim().split('\n');
+      const row = (title) => Number(lines.find((line) => line.startsWith(`${title}\t`)).split('\t')[2]);
+      const parts = ['App', 'Wired', 'Compressed', 'Free'];
+      const usage = lines.slice(lines.indexOf('Usage') + 1, lines.indexOf('Top processes')).map((line) => line.split('\t')[0]);
+      assert.deepEqual(usage, ['Used', ...parts, 'Swap', 'Total'], 'the rows in Stats\' order');
+      const close = (a, b) => Math.abs(a - b) <= 0.01 * row('Total');
+      assert.ok(close(row('App') + row('Wired') + row('Compressed'), row('Used')), 'App, Wired and Compressed make Used');
+      assert.ok(close(row('Used') + row('Free'), row('Total')), 'Used and Free make all memory');
+      const processes = lines.slice(lines.indexOf('Top processes') + 1).map((line) => Number(line.split('\t')[2]));
+      assert.ok(processes.length > 0 && processes.length <= 8, 'up to eight processes');
+      for (let i = 1; i < processes.length; i++) assert.ok(processes[i - 1] >= processes[i], 'biggest first');
+    });
 
     it('renders the Disk item as used/total GB', (t) => {
       const png = join(tempDir(t, 'macstats-png'), 'disk.png');

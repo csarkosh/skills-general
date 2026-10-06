@@ -134,6 +134,20 @@ func renderMiniView(label: String, value: String, alert: Bool = false, to path: 
     return 0
 }
 
+/// Runs a command-line tool and returns what it printed.
+func runTool(_ path: String, _ arguments: [String]) -> Data? {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: path)
+    process.arguments = arguments
+    let output = Pipe()
+    process.standardOutput = output
+    process.standardError = FileHandle.nullDevice
+    do { try process.run() } catch { return nil }
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    return data
+}
+
 // MARK: - The panel, styled like Stats' popups
 
 /// Stats' popup sizes: 264 wide inside 8 of margin, a 42-high header, 22-high rows.
@@ -225,6 +239,39 @@ final class PanelRow: NSView {
     /// Changes the square's colour, for a row made with one.
     func setColor(_ color: NSColor) {
         block.layer?.backgroundColor = color.cgColor
+    }
+}
+
+/// A line bar split into coloured parts, drawn like Stats' horizontal bar chart: 10
+/// points high with corners rounded at 3, the rest of the line in faint grey.
+final class SpaceBar: NSView {
+    var parts: [(fraction: Double, color: NSColor)] = [] { didSet { needsDisplay = true } }
+
+    init() {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: 14),
+            widthAnchor.constraint(equalToConstant: Panel.width),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let bar = NSRect(x: 0, y: (bounds.height - 10) / 2, width: bounds.width, height: 10)
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(roundedRect: bar, xRadius: 3, yRadius: 3).addClip()
+        NSColor.lightGray.withAlphaComponent(0.25).setFill()
+        bar.fill()
+        var x = bar.minX
+        for part in parts {
+            let width = bar.width * CGFloat(max(0, part.fraction))
+            part.color.setFill()
+            NSRect(x: x, y: bar.minY, width: width, height: bar.height).fill()
+            x += width
+        }
+        NSGraphicsContext.restoreGraphicsState()
     }
 }
 

@@ -1,13 +1,15 @@
-// MacStats: menu bar items that sit beside the Stats app's CPU, GPU and RAM items,
-// drawn like them: Temp (CPU and GPU temperature, with every sensor in its panel)
-// and Disk (used/total space, with where it goes in its panel). Each item lives in
-// its own file; MenuKit.swift holds what they share.
+// MacStats: menu bar items that sit beside the Stats app's CPU and GPU items, drawn
+// like them: RAM (memory in use, with its history and top processes in its panel),
+// Temp (the hottest part, with every sensor in its panel) and Disk (used/total space,
+// with where it goes in its panel). Each item lives in its own file; MenuKit.swift
+// holds what they share.
 //
 //   swiftc -O *.swift -o MacStats           # setup.sh builds it into MacStats.app
 //   MacStats                                # runs both menu bar items
-//   MacStats --show-panel temp|disk[,…]     # runs, opening those panels in turn, as clicks would
-//   MacStats --render temp|disk out.png     # draws that menu bar item to a PNG and exits
+//   MacStats --show-panel ram|temp|disk[,…] # runs, opening those panels in turn, as clicks would
+//   MacStats --render ram|temp|disk out.png # draws that menu bar item to a PNG and exits
 //                                           # (with --alert, Temp as it looks when hot)
+//   MacStats --memory                       # prints the RAM panel and exits
 //   MacStats --sensors                      # prints the Temp panel and exits
 //   MacStats --weigh 49.8 53.0 …            # prints those temperatures' hot-weighted value
 //   MacStats --heat "<row name>" <°C>       # prints the colour a Temperature row would get
@@ -19,6 +21,9 @@
 import Cocoa
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var ram: MenuBarItem!
+    private let memoryHistory = MemoryHistory()
+    private lazy var ramPanel = RAMPanel(history: memoryHistory)
     private var temp: MenuBarItem!
     private var disk: MenuBarItem!
     private let reader = SensorReader()
@@ -28,6 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        ram = MenuBarItem(autosaveName: "MacStatsRAM", label: "RAM") { [unowned self] in ramPanel.toggle(under: $0) }
         temp = MenuBarItem(autosaveName: "MacStatsTemp", label: "Temp") { [unowned self] in tempPanel.toggle(under: $0) }
         disk = MenuBarItem(autosaveName: "MacStatsDisk", label: "Disk") { [unowned self] in diskPanel.toggle(under: $0) }
         refresh()
@@ -37,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // "--show-panel disk,temp" opens each in turn, two seconds apart, as clicks would.
         for (index, which) in (argument(after: "--show-panel") ?? "").split(separator: ",").enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1 + 2 * Double(index)) { [unowned self] in
+                if which == "ram", let button = ram.button { ramPanel.toggle(under: button) }
                 if which == "temp", let button = temp.button { tempPanel.toggle(under: button) }
                 if which == "disk", let button = disk.button { diskPanel.toggle(under: button) }
             }
@@ -44,6 +51,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refresh() {
+        if let usage = memoryUsage() {
+            memoryHistory.add(usage)
+            let ramText = ramItemText(usage)
+            ram.show(ramText.value, tooltip: ramText.tooltip)
+            if ramPanel.isVisible { ramPanel.update(usage) }
+        }
         let readings = reader.read()
         let tempText = tempItemText(readings)
         temp.show(tempText.value, tooltip: tempText.tooltip, alert: tempText.alert)
@@ -67,18 +80,24 @@ func fail(_ message: String) -> Never {
 
 if arguments.contains("--render") {
     guard let index = arguments.firstIndex(of: "--render"), index + 2 < arguments.count else {
-        fail("usage: MacStats --render temp|disk <out.png>")
+        fail("usage: MacStats --render ram|temp|disk <out.png>")
     }
     let path = arguments[index + 2]
     switch arguments[index + 1] {
+    case "ram":
+        guard let usage = memoryUsage() else { fail("Could not read memory use.") }
+        exit(renderMiniView(label: "RAM", value: ramItemText(usage).value, to: path))
     case "temp":
         let text = tempItemText(SensorReader().read())
         exit(renderMiniView(label: "Temp", value: text.value, alert: text.alert || arguments.contains("--alert"), to: path))
     case "disk":
         guard let text = diskItemText(DiskSampler()) else { fail("Could not read the startup disk's capacity.") }
         exit(renderMiniView(label: "Disk", value: text.value, to: path))
-    default: fail("usage: MacStats --render temp|disk <out.png>")
+    default: fail("usage: MacStats --render ram|temp|disk <out.png>")
     }
+}
+if arguments.contains("--memory") {
+    exit(memoryReport())
 }
 if arguments.contains("--sensors") {
     exit(sensorsReport())
