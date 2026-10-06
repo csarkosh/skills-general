@@ -406,8 +406,8 @@ final class GPUPanel: StatsPanel {
         fpsRow.toolTip = "Frames the displays showed in the last second."
         memorySparkline.capacity = history.capacity
         memorySparkline.place(in: memoryRow)
-        memoryDetail.font = .systemFont(ofSize: 12)
-        memoryDetail.textColor = .secondaryLabelColor
+        memoryDetail.font = .systemFont(ofSize: 10)
+        memoryDetail.textColor = .labelColor
         memoryDetail.alignment = .right
         memoryDetail.translatesAutoresizingMaskIntoConstraints = false
         memoryDetail.widthAnchor.constraint(equalToConstant: Panel.width).isActive = true
