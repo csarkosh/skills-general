@@ -281,6 +281,8 @@ final class SpaceBar: NSView {
 /// `fraction` 0 is the start of green, 1/3 the start of yellow, 2/3 of red, 1 the end.
 final class GaugeView: NSView {
     var fraction: Double = 0 { didSet { needsDisplay = true } }
+    /// What the gauge measures, above the arc.
+    var heading = "" { didSet { needsDisplay = true } }
     var title = "" { didSet { needsDisplay = true } }
     var subtitle = "" { didSet { needsDisplay = true } }
 
@@ -290,9 +292,16 @@ final class GaugeView: NSView {
         centered.alignment = .center
         centered.lineBreakMode = .byTruncatingTail
         let labels: CGFloat = 26
+        let headingHeight: CGFloat = heading.isEmpty ? 0 : 16
         let arcWidth: CGFloat = 6
         let center = CGPoint(x: bounds.midX, y: labels + 4)
-        let radius = min(bounds.width / 2 - 10, bounds.height - labels - 8) - arcWidth / 2
+        let radius = min(bounds.width / 2 - 10, bounds.height - headingHeight - labels - 8) - arcWidth / 2
+
+        NSAttributedString(string: heading, attributes: [
+            .font: NSFont.systemFont(ofSize: 10, weight: .medium),
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: centered,
+        ]).draw(with: CGRect(x: 0, y: bounds.height - 13, width: bounds.width, height: 13))
 
         // Three equal arcs from the left (π) to the right (0), with small gaps, as in Stats.
         let gap = 0.025 * CGFloat.pi

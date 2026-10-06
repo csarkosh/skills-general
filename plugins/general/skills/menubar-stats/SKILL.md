@@ -113,7 +113,8 @@ panel is open; the header's icon opens Activity Monitor.
 ## The Temp panel
 
 Two gauges on top, drawn like Stats' RAM pressure gauge (three equal green, yellow and red arcs
-and a blue needle, which here moves along its band): the hottest part on that part's own limits
+and a blue needle, which here moves along its band), headed "Hottest part" and "Power use": the
+hottest part on that part's own limits
 ("Hot · 185°F" over its name), and power use ("Normal · 9 W" over the battery time left at that
 rate, or "on charger"). Power use is Total in watts, in tiers from the Mac's own figures in
 `Temp.swift`: the M4 MacBook Air idles at 0.7–3.6 W (Apple's ENERGY STAR filing), sustains 8–9 W

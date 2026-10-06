@@ -205,8 +205,10 @@ final class TempPanel: StatsPanel {
         dashboard.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             dashboard.widthAnchor.constraint(equalToConstant: Panel.width),
-            dashboard.heightAnchor.constraint(equalToConstant: 92),
+            dashboard.heightAnchor.constraint(equalToConstant: 108),
         ])
+        heatGauge.heading = "Hottest part"
+        powerGauge.heading = "Power use"
         heatGauge.toolTip = "The hottest part, on its own limits: the same colours as its row below."
         powerGauge.toolTip = String(format: "What the whole Mac draws: normal below %.0f W, moderate below %.0f W, "
             + "high from %.0f W; the gauge ends at %.0f W, this Mac's peak.",
