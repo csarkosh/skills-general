@@ -59,15 +59,31 @@ final class DiskView: NSView {
     }
 }
 
-// The figures Stats uses: free is the space available for important usage (it
-// counts purgeable space as free), used is total minus free. Decimal gigabytes.
-func diskFigures() -> (value: String, free: String)? {
-    guard let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [
-        .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey,
-    ]), let total = values.volumeTotalCapacity.map(Int64.init),
-          let free = values.volumeAvailableCapacityForImportantUsage else { return nil }
-    let gb = { (bytes: Int64) in String(format: "%.1f", Double(bytes) / 1_000_000_000) }
-    return ("\(gb(total - free))/\(gb(total)) GB", "\(gb(free)) GB")
+/// The figures Stats uses: free is the space available for important usage (it
+/// counts purgeable space as free), used is total minus free. Decimal gigabytes.
+///
+/// Read every second, like Stats' CPU and GPU. The plain free space costs next to
+/// nothing; the important-usage figure costs about 10 ms of CPU, so it is read
+/// every 30 seconds and the purgeable space it adds is carried between reads.
+final class DiskSampler {
+    private var purgeable: Int64 = 0
+    private var lastFullRead = Date.distantPast
+
+    func sample() -> (value: String, free: String)? {
+        let full = Date().timeIntervalSince(lastFullRead) >= 30
+        var keys: Set<URLResourceKey> = [.volumeTotalCapacityKey, .volumeAvailableCapacityKey]
+        if full { keys.insert(.volumeAvailableCapacityForImportantUsageKey) }
+        guard let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: keys),
+              let total = values.volumeTotalCapacity.map(Int64.init),
+              let plain = values.volumeAvailableCapacity.map(Int64.init) else { return nil }
+        if full, let important = values.volumeAvailableCapacityForImportantUsage {
+            purgeable = max(0, important - plain)
+            lastFullRead = Date()
+        }
+        let free = min(total, plain + purgeable)
+        let gb = { (bytes: Int64) in String(format: "%.1f", Double(bytes) / 1_000_000_000) }
+        return ("\(gb(total - free))/\(gb(total)) GB", "\(gb(free)) GB")
+    }
 }
 
 // MARK: - The five spaces
@@ -603,6 +619,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let view = DiskView()
     private lazy var panel = DiskPanel()
     private let menu = NSMenu()
+    private let sampler = DiskSampler()
     private var timer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -622,7 +639,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Quit DiskMenu", action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
 
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.refresh() }
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.refresh() }
+        timer?.tolerance = 0.2
         if CommandLine.arguments.contains("--show-panel") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.togglePanel() }
         }
@@ -641,7 +659,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refresh() {
-        guard let figures = diskFigures() else { return }
+        guard let figures = sampler.sample(), figures.value != view.value else { return }
         view.value = figures.value
         item.button?.toolTip = "Free: \(figures.free). Click for where the space goes."
         let width = view.valueWidth()
@@ -656,7 +674,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 // Draws the item, at 4x, on a dark menu bar, so its look can be checked without
 // Screen Recording permission.
 func render(to path: String) -> Int32 {
-    guard let figures = diskFigures() else {
+    guard let figures = DiskSampler().sample() else {
         FileHandle.standardError.write("Could not read the startup disk's capacity.\n".data(using: .utf8)!)
         return 1
     }

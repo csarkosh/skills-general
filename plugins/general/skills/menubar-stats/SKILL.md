@@ -12,8 +12,9 @@ This skill reproduces one layout, left-most in the menu bar and in this order:
 | `CPU` over `12%` | `GPU` over `84%` | `RAM` over `89%` | `153°` over `151°` (CPU, GPU) | `Disk` over `215.9/245.1 GB` (used/total) |
 
 CPU, GPU, RAM and the temperatures come from **Stats** (free, `brew install --cask stats`).
-The Disk item is **DiskMenu**, about 100 lines of Swift in `scripts/diskmenu.swift`, built on the
-Mac. Stats cannot draw it: its Disk text widget is a single 12pt line with no label, and its
+The Disk item is **DiskMenu**, a small Swift app in `scripts/diskmenu.swift`, built on the Mac. It
+updates every second, like Stats' CPU and GPU, for about 0.1% of one core: it reads the plain free
+space each second and the purgeable-aware figure (what Stats and Finder show) every 30 seconds. Stats cannot draw it: its Disk text widget is a single 12pt line with no label, and its
 two-line "memory" widget shows free over used (people misread it as used over total).
 
 Clicking Disk drops down a **Disk panel**, styled like Stats' panels, listing where the space
