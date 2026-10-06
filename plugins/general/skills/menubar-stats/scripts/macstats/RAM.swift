@@ -14,6 +14,8 @@ struct MemoryUsage {
     let compressed: Double
     let free: Double
     let swap: Double
+    /// What macOS has set aside for swap so far; it grows as needed.
+    let swapTotal: Double
 }
 
 /// Memory as Stats counts it: used is active, inactive, speculative, wired and
@@ -44,7 +46,8 @@ func memoryUsage() -> MemoryUsage? {
     sysctlbyname("vm.swapusage", &swap, &size, nil, 0)
 
     return MemoryUsage(total: total, used: used, app: max(0, used - wired - compressed), wired: wired,
-                       compressed: compressed, free: max(0, total - used), swap: Double(swap.xsu_used))
+                       compressed: compressed, free: max(0, total - used), swap: Double(swap.xsu_used),
+                       swapTotal: Double(swap.xsu_total))
 }
 
 /// Memory in the units macOS uses for it (binary, shown as GB and MB), as Stats does.
@@ -63,8 +66,8 @@ let memoryParts: [(title: String, color: NSColor, value: (MemoryUsage) -> Double
 ]
 
 /// Swap is disk space macOS uses as overflow when memory runs short. It is not part of
-/// the physical memory the bands divide up, so the chart draws it as a dashed line on
-/// the same scale instead of a band, in its row's colour.
+/// the physical memory the bands divide up, so it has a strip of its own under them, in
+/// its row's colour.
 let swapColor = NSColor.systemPurple
 
 /// What the RAM item shows: the share of memory in use.
@@ -129,17 +132,20 @@ final class MemoryHistory {
 
 /// Stats' usage history chart, with a band per part instead of one for used: App,
 /// Wired and Compressed stacked from the bottom, Free on top, newest at the right. Free
-/// is labelled at the top right with its size now, and a time axis runs underneath.
+/// is labelled at the top right with its size now. Under it, a strip on the same time
+/// axis shows swap, out of what macOS has set aside for it; then the time axis.
 final class MemoryChart: NSView {
     var history: MemoryHistory?
     private let plotHeight: CGFloat = 90
+    private let swapHeight: CGFloat = 22
+    private let gap: CGFloat = 4
     private let axisHeight: CGFloat = 13
 
     init() {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            heightAnchor.constraint(equalToConstant: plotHeight + axisHeight),
+            heightAnchor.constraint(equalToConstant: plotHeight + gap + swapHeight + axisHeight),
             widthAnchor.constraint(equalToConstant: Panel.width),
         ])
     }
@@ -147,8 +153,10 @@ final class MemoryChart: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func draw(_ dirtyRect: NSRect) {
-        let plot = NSRect(x: 0, y: axisHeight, width: bounds.width, height: plotHeight)
+        let strip = NSRect(x: 0, y: axisHeight, width: bounds.width, height: swapHeight)
+        let plot = NSRect(x: 0, y: strip.maxY + gap, width: bounds.width, height: plotHeight)
         drawAxis()
+        drawSwap(in: strip)
         let frame = NSBezierPath(roundedRect: plot, xRadius: 6, yRadius: 6)
         NSColor.lightGray.withAlphaComponent(0.1).setFill()
         frame.fill()
@@ -176,16 +184,6 @@ final class MemoryChart: NSView {
             path.fill()
             below = above
         }
-        // Swap over time, as a dashed line on the same scale (capped at the top).
-        let swapLine = NSBezierPath()
-        for index in samples.indices {
-            let point = CGPoint(x: x(index), y: y(min(1, samples[index].swap / samples[index].total)))
-            if index == 0 { swapLine.move(to: point) } else { swapLine.line(to: point) }
-        }
-        swapLine.lineWidth = 1.5
-        swapLine.setLineDash([4, 2], count: 2, phase: 0)
-        swapColor.setStroke()
-        swapLine.stroke()
         // Free's size and share now, "Free: 2.1 GB (13%)", at the top right, against the top edge.
         if let free = memoryParts.last {
             let right = NSMutableParagraphStyle()
@@ -200,6 +198,39 @@ final class MemoryChart: NSView {
             let height = ceil(text.size().height)
             text.draw(with: NSRect(x: plot.minX, y: plot.maxY - height, width: plot.width - 10, height: height))
         }
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    /// Swap used over time, as a share of what macOS has set aside for it, labelled
+    /// like Free: "Swap: 6.17 GB of 7 GB".
+    private func drawSwap(in strip: NSRect) {
+        let frame = NSBezierPath(roundedRect: strip, xRadius: 4, yRadius: 4)
+        NSColor.lightGray.withAlphaComponent(0.1).setFill()
+        frame.fill()
+        guard let history, history.samples.count > 1, let latest = history.samples.last else { return }
+        NSGraphicsContext.saveGraphicsState()
+        frame.addClip()
+        let samples = history.samples
+        let step = strip.width / CGFloat(history.capacity - 1)
+        let x = { (index: Int) in strip.maxX - CGFloat(samples.count - 1 - index) * step }
+        let share = { (usage: MemoryUsage) in usage.swapTotal > 0 ? min(1, usage.swap / usage.swapTotal) : 0 }
+        let area = NSBezierPath()
+        area.move(to: CGPoint(x: x(0), y: strip.minY))
+        for index in samples.indices {
+            area.line(to: CGPoint(x: x(index), y: strip.minY + CGFloat(share(samples[index])) * strip.height))
+        }
+        area.line(to: CGPoint(x: x(samples.count - 1), y: strip.minY))
+        area.close()
+        swapColor.setFill()
+        area.fill()
+        let right = NSMutableParagraphStyle()
+        right.alignment = .right
+        let text = NSAttributedString(
+            string: latest.swapTotal > 0 ? "Swap: \(formatMemory(latest.swap)) of \(formatMemory(latest.swapTotal))" : "Swap: none",
+            attributes: [.font: NSFont.systemFont(ofSize: 9, weight: .semibold), .foregroundColor: NSColor.labelColor,
+                         .paragraphStyle: right])
+        let height = ceil(text.size().height)
+        text.draw(with: NSRect(x: strip.minX, y: strip.maxY - height, width: strip.width - 10, height: height))
         NSGraphicsContext.restoreGraphicsState()
     }
 
@@ -279,7 +310,7 @@ final class RAMPanel: StatsPanel {
         for row in partRows { body.addArrangedSubview(row) }
         body.addArrangedSubview(swapRow)
         swapRow.toolTip = "Disk space macOS uses as overflow when memory runs short. It is not part of the "
-            + "memory above, so the chart shows it as a dashed line, not a band."
+            + "memory above, so it has its own strip under the memory chart."
 
         body.addArrangedSubview(separatorView("Top processes"))
         let heading = ProcessRow()
