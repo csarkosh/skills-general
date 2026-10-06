@@ -424,7 +424,7 @@ final class SpaceBar: NSView {
 
 final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate {
     let outline = NSOutlineView()
-    /// Shown over the empty folder list while measuring, a third of the way down.
+    /// Shown over the empty folder list while measuring, a quarter of the way down.
     private let measuring = NSTextField(wrappingLabelWithString: "")
     private let spinner = NSProgressIndicator()
     private let measuringNote = NSStackView()
@@ -525,8 +525,8 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         scroll.autohidesScrollers = true
         scroll.translatesAutoresizingMaskIntoConstraints = false
 
-        // While measuring, the list is empty and the measuring note sits a third
-        // of the way down it; once measured, the note under the list takes over.
+        // While measuring, the list is empty and the measuring note sits a quarter
+        // of the way down it; once measured, the time it was measured shows under it.
         spinner.style = .spinning
         spinner.controlSize = .small
         for text in [measuring, status] {
@@ -570,10 +570,10 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
             scroll.bottomAnchor.constraint(equalTo: folderArea.bottomAnchor),
             measuringNote.leadingAnchor.constraint(equalTo: folderArea.leadingAnchor),
             measuringNote.trailingAnchor.constraint(equalTo: folderArea.trailingAnchor),
-            measuringNote.topAnchor.constraint(equalTo: folderArea.topAnchor, constant: Panel.foldersHeight / 3),
-            // Room for two lines, kept while measuring, so the panel does not jump.
+            measuringNote.topAnchor.constraint(equalTo: folderArea.topAnchor, constant: Panel.foldersHeight / 4),
+            // Room for its line, kept while measuring, so the panel does not jump.
             status.widthAnchor.constraint(equalToConstant: Panel.width),
-            status.heightAnchor.constraint(equalToConstant: 28),
+            status.heightAnchor.constraint(equalToConstant: 14),
         ])
         updateStatus()
     }
@@ -671,13 +671,11 @@ final class DiskPanel: NSWindow, NSWindowDelegate, NSOutlineViewDataSource, NSOu
         let privacy = "Private folders are never opened; ≥\u{00A0}means at least."
         measuringNote.isHidden = !scanning
         measuring.stringValue = "Measuring folders, about a minute… " + privacy
-        if scanning {
-            status.stringValue = ""
-        } else if let measuredAt {
+        if !scanning, let measuredAt {
             let time = DateFormatter.localizedString(from: measuredAt, dateStyle: .none, timeStyle: .short)
-            status.stringValue = "Measured \(time). " + privacy
+            status.stringValue = "Last measured at \(time)."
         } else {
-            status.stringValue = privacy
+            status.stringValue = ""
         }
         fitToContents()
     }
