@@ -26,11 +26,12 @@ struct PowerLine {
     let tooltip: String?
 }
 
-/// The Power section: the SMC's voltage, current and power readings in plain words.
-/// What the whole Mac uses, the battery, the charger (only while one is connected,
-/// with its voltage and current in the tooltip) and the internal supply; any other
-/// such sensor follows under its own name.
-func powerLines(_ readings: [Reading]) -> [PowerLine] {
+/// The Power section: the SMC's voltage, current and power readings in plain words,
+/// and the battery's charge. What the whole Mac uses, the battery's draw and what is
+/// left in it, the charger (only while one is connected, with its voltage and current
+/// in the tooltip) and the internal supply; any other such sensor follows under its
+/// own name.
+func powerLines(_ readings: [Reading], battery charge: BatteryCharge?) -> [PowerLine] {
     let byKey = Dictionary(readings.map { ($0.sensor.key, $0.value) }, uniquingKeysWith: { first, _ in first })
     var lines: [PowerLine] = []
     if let total = byKey["PSTR"] {
@@ -40,6 +41,13 @@ func powerLines(_ readings: [Reading]) -> [PowerLine] {
     if let battery = byKey["PPBR"] {
         lines.append(PowerLine(id: "PPBR", title: "Battery", value: String(format: "%.1f W", battery),
                                tooltip: "Power coming out of the battery; about 0 while a charger covers everything."))
+    }
+    if let charge {
+        lines.append(PowerLine(
+            id: "batteryLeft", title: "Battery left",
+            value: String(format: "%.1f/%.1f Wh (%d%%)", charge.leftWh, charge.fullWh, charge.percent),
+            tooltip: String(format: "A full charge holds %.1f Wh; new, it held %.1f Wh. %d charge cycles so far. "
+                + "The percentage is the one the battery icon shows.", charge.fullWh, charge.designWh, charge.cycles)))
     }
     let chargerWatts = byKey["PDTR"] ?? 0, chargerVolts = byKey["VD0R"] ?? 0, chargerAmps = byKey["ID0R"] ?? 0
     if chargerWatts > 0.5 || chargerVolts > 1 {
@@ -84,7 +92,7 @@ final class TempPanel: StatsPanel {
             }
             body.addArrangedSubview(temperatureList)
         }
-        if reader.sensors.contains(where: { [.power, .voltage, .current].contains($0.kind) }) {
+        if reader.sensors.contains(where: { [.power, .voltage, .current].contains($0.kind) }) || batteryCharge() != nil {
             body.addArrangedSubview(powerCaption)
             powerList.orientation = .vertical
             powerList.alignment = .leading
@@ -125,7 +133,7 @@ final class TempPanel: StatsPanel {
         }
         temperatureList.setViews(groups.compactMap { temperatureRows[$0.name] }, in: .top)
         // Power rows come and go with the charger.
-        let lines = powerLines(readings)
+        let lines = powerLines(readings, battery: batteryCharge())
         for line in lines {
             let row = powerRows[line.id] ?? PanelRow(line.title + ":")
             powerRows[line.id] = row
@@ -155,7 +163,7 @@ func sensorsReport() -> Int32 {
         print([group.name, String(format: "%.1f", group.celsius), String(group.count),
                String(format: "%.1f-%.1f", group.coolest, group.hottest)].joined(separator: "\t"))
     }
-    let lines = powerLines(readings)
+    let lines = powerLines(readings, battery: batteryCharge())
     if !lines.isEmpty { print("Power") }
     for line in lines { print(line.title + "\t" + line.value) }
     let fans = readings.filter { $0.sensor.kind == .fan }

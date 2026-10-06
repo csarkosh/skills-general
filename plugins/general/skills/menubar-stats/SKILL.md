@@ -22,7 +22,8 @@ Right-click either for Quit.
 Each feature is one file, so a later App Store edition can leave one out (the sandbox forbids the
 SMC reads and the disk-wide folder walk): `MenuKit.swift` (the item and the panel's look, shared),
 `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
-`main.swift` (starts both, and the command line). `SMC.swift` and `SensorCatalog.swift` are adapted
+`Battery.swift` (the battery's charge, for Temp's Power section), and `main.swift` (starts both,
+and the command line). `SMC.swift` and `SensorCatalog.swift` are adapted
 from Stats (MIT); its licence is `scripts/macstats/LICENSE-stats.txt`.
 
 Use `scripts/setup.sh` in this skill's directory rather than writing your own: it holds the
@@ -108,7 +109,9 @@ weighted the same way, in °F where the Mac's region uses US units and °C elsew
 
 **Power is Stats' Voltage, Current and Power sections in plain words**, each row with a tooltip
 saying what it is: Total (`PSTR`, everything the Mac uses), Battery (`PPBR`, power out of the
-battery), Charger (`PDTR` in watts, with `VD0R` volts and `ID0R` amps in its tooltip; shown only
+battery), Battery left (`25.8/52.6 Wh (49%)`: what remains of what a full charge holds now, from
+the `AppleSmartBattery` registry entry in `Battery.swift`; the percentage is the battery icon's,
+and the tooltip adds the capacity when new and the charge cycles), Charger (`PDTR` in watts, with `VD0R` volts and `ID0R` amps in its tooltip; shown only
 while a charger is connected) and Internal supply (`VP0R`, the main supply line, near 12 V). Any
 other power, voltage or current sensor follows under Stats' name for it. Fans lists each fan in RPM.
 

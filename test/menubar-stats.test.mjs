@@ -118,6 +118,12 @@ describe('menubar-stats', () => {
       }
       for (const raw of ['System Total', 'DC In', '12V rail']) assert.ok(!titles.includes(raw), `${raw} is shown in plain words`);
       if (process.arch === 'arm64') assert.equal(titles[0], 'Total', 'what the whole Mac uses comes first');
+      const hasBattery = runOk('ioreg', ['-rn', 'AppleSmartBattery']).stdout.includes('AppleRawMaxCapacity');
+      if (hasBattery) {
+        const row = lines.slice(start + 1).find((line) => line.startsWith('Battery left\t'));
+        assert.ok(row, 'a Mac with a battery shows what is left in it');
+        assert.match(row.split('\t')[1], /^\d+\.\d\/\d+\.\d Wh \(\d+%\)$/, 'as left/full Wh and the percentage');
+      }
     });
 
     it('gives every Disk Spaces row under Used a colour, biggest first, Free last', () => {
