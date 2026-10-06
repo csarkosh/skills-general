@@ -105,9 +105,8 @@ the top right against the top edge, and "3 min ago … now" runs underneath. The
 Used with its bar, a row per part and Swap (purple). Swap is disk space used as overflow,
 outside the physical memory the bands and the bar divide up, so it stays out of the chart (a
 line across the bands read as if the bands under it were swap, and a band on top squeezed
-them). Its row is always last, under a dashed line that sets it apart from the memory rows,
-and reads `6.21 GB` with a small purple graph of the last three minutes measured against the
-Mac's memory: swap has no fixed maximum (macOS adds 1 GB
+them). Its row is always last and reads `6.21 GB` with a small purple graph of the last three
+minutes measured against the Mac's memory: swap has no fixed maximum (macOS adds 1 GB
 swap files as it needs them while the disk has room), so the useful ratio is how far memory
 demand has spilled past the memory there is. The
 figures are Stats': used is active, inactive, speculative, wired and compressed pages less

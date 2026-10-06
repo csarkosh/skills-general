@@ -209,30 +209,6 @@ final class MemoryChart: NSView {
 /// the Mac's physical memory: its height is how far memory demand has spilled past it.
 /// (Swap has no fixed maximum to scale to: macOS adds 1 GB swap files as it needs them
 /// while the disk has room.)
-/// A dashed rule across the panel, setting the Swap row apart from the memory rows.
-final class DashedLine: NSView {
-    init() {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            heightAnchor.constraint(equalToConstant: 7),
-            widthAnchor.constraint(equalToConstant: Panel.width),
-        ])
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override func draw(_ dirtyRect: NSRect) {
-        let line = NSBezierPath()
-        line.move(to: CGPoint(x: bounds.minX, y: bounds.midY))
-        line.line(to: CGPoint(x: bounds.maxX, y: bounds.midY))
-        line.lineWidth = 1
-        line.setLineDash([4, 3], count: 2, phase: 0)
-        NSColor.labelColor.withAlphaComponent(0.35).setStroke()
-        line.stroke()
-    }
-}
-
 final class SwapSparkline: NSView {
     var history: MemoryHistory?
 
@@ -322,8 +298,7 @@ final class RAMPanel: StatsPanel {
         body.addArrangedSubview(usedRow)
         body.addArrangedSubview(bar)
         for row in partRows { body.addArrangedSubview(row) }
-        // Swap is always last, under a dashed line: it is not part of the memory above.
-        body.addArrangedSubview(DashedLine())
+        // Swap is always last: it is not part of the memory above.
         body.addArrangedSubview(swapRow)
         swapRow.toolTip = "Disk space macOS uses as overflow when memory runs short. It has no fixed maximum: "
             + "macOS adds 1 GB swap files as it needs them while the disk has room. The small graph compares it "
