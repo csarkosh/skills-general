@@ -123,9 +123,8 @@ final class MemoryHistory {
 }
 
 /// Stats' usage history chart, with a band per part instead of one for used: App,
-/// Wired and Compressed stacked from the bottom, Free on top, newest at the right. Each
-/// band is labelled at the right edge with its name and size now, and a time axis runs
-/// underneath, so the chart reads without the rows.
+/// Wired and Compressed stacked from the bottom, Free on top, newest at the right. Free
+/// is labelled at the top right with its size now, and a time axis runs underneath.
 final class MemoryChart: NSView {
     var history: MemoryHistory?
     private let plotHeight: CGFloat = 90
@@ -157,7 +156,6 @@ final class MemoryChart: NSView {
         let y = { (fraction: Double) in plot.minY + CGFloat(fraction) * plot.height }
         // Cumulative tops, one per band, as fractions of all memory.
         var below = [Double](repeating: 0, count: samples.count)
-        var labels: [(text: String, bottom: Double, top: Double, onColor: Bool)] = []
         for (band, part) in memoryParts.enumerated() {
             let isFree = band == memoryParts.count - 1
             let above = samples.indices.map { index in
@@ -171,31 +169,19 @@ final class MemoryChart: NSView {
             // The same colours as the rows' squares, so each band reads as its row.
             (isFree ? part.color.withAlphaComponent(0.5) : part.color).setFill()
             path.fill()
-            let latest = samples[samples.count - 1]
-            labels.append(("\(part.title) \(formatMemory(part.value(latest)))", below.last!, above.last!, !isFree))
             below = above
         }
-        // Each band's name and size now, at the right edge, where the newest data is;
-        // a band too thin for the text goes unlabelled (its row below has the figure).
-        let shadow = NSShadow()
-        shadow.shadowColor = NSColor.black.withAlphaComponent(0.45)
-        shadow.shadowBlurRadius = 2
-        shadow.shadowOffset = .zero
-        let right = NSMutableParagraphStyle()
-        right.alignment = .right
-        for label in labels {
-            let height = CGFloat(label.top - label.bottom) * plot.height
-            guard height >= 12 else { continue }
-            var attributes: [NSAttributedString.Key: Any] = [
+        // Free's size now, at the top right, 4 points below the top edge.
+        if let free = memoryParts.last {
+            let right = NSMutableParagraphStyle()
+            right.alignment = .right
+            let text = NSAttributedString(string: "\(free.title) \(formatMemory(free.value(samples[samples.count - 1])))", attributes: [
                 .font: NSFont.systemFont(ofSize: 9, weight: .semibold),
-                .foregroundColor: label.onColor ? NSColor.white : NSColor.labelColor,
+                .foregroundColor: NSColor.labelColor,
                 .paragraphStyle: right,
-            ]
-            if label.onColor { attributes[.shadow] = shadow }
-            // Kept clear of the rounded corners.
-            let middle = max(y((label.bottom + label.top) / 2), plot.minY + 7)
-            NSAttributedString(string: label.text, attributes: attributes)
-                .draw(with: NSRect(x: plot.minX, y: middle - 6, width: plot.width - 10, height: 12))
+            ])
+            let height = ceil(text.size().height)
+            text.draw(with: NSRect(x: plot.minX, y: plot.maxY - 4 - height, width: plot.width - 10, height: height))
         }
         NSGraphicsContext.restoreGraphicsState()
     }
