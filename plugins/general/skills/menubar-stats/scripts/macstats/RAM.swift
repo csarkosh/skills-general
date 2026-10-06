@@ -171,11 +171,13 @@ final class MemoryChart: NSView {
             path.fill()
             below = above
         }
-        // Free's size now, at the top right, against the top edge.
+        // Free's size and share now, "Free: 2.1 GB (13%)", at the top right, against the top edge.
         if let free = memoryParts.last {
             let right = NSMutableParagraphStyle()
             right.alignment = .right
-            let text = NSAttributedString(string: "\(free.title) \(formatMemory(free.value(samples[samples.count - 1])))", attributes: [
+            let latest = samples[samples.count - 1]
+            let percent = Int((free.value(latest) / latest.total * 100).rounded())
+            let text = NSAttributedString(string: "\(free.title): \(formatMemory(free.value(latest))) (\(percent)%)", attributes: [
                 .font: NSFont.systemFont(ofSize: 9, weight: .semibold),
                 .foregroundColor: NSColor.labelColor,
                 .paragraphStyle: right,
