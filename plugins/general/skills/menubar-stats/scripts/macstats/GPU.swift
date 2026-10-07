@@ -418,8 +418,8 @@ final class GPUPanel: StatsPanel {
         framesSparkline.fractions = history.samples.map { ($0.fps ?? 0) / maxFPS }
         let tooltip = twoLines("GPU memory in use, of the \(formatMemory(gpuMemoryLimit)) macOS lets it use. "
             + "It holds \(formatMemory(sample.memoryAllocated)) set aside.")
-        memoryRow.toolTip = tooltip
-        memoryDetail.toolTip = tooltip
+        memoryRow.setSteadyToolTip(tooltip)
+        memoryDetail.setSteadyToolTip(tooltip)
     }
 
     override func willOpen() {

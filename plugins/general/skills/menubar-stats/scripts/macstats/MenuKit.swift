@@ -92,7 +92,7 @@ final class MenuBarItem: NSObject {
     var button: NSStatusBarButton? { item.button }
 
     func show(_ value: String, tooltip: String, alert: Bool = false) {
-        item.button?.toolTip = twoLines(tooltip)
+        item.button?.setSteadyToolTip(twoLines(tooltip))
         guard value != view.value || alert != view.alert else { return }
         view.value = value
         view.alert = alert
@@ -306,6 +306,22 @@ let tooltipLineWidth: CGFloat = 240
 
 func tooltipWidth(_ line: String) -> CGFloat {
     NSAttributedString(string: line, attributes: [.font: NSFont.toolTipsFont(ofSize: 0)]).size().width
+}
+
+extension NSView {
+    /// Whether the mouse is over the view now.
+    var isUnderMouse: Bool {
+        guard let window else { return false }
+        return bounds.contains(convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil))
+    }
+
+    /// Sets a tooltip that is updated again and again (every second with the readings):
+    /// only when its text changes, and never while the mouse is over the view. AppKit
+    /// hides and shows a tooltip again whenever it is set, so one set every second blinks.
+    func setSteadyToolTip(_ text: String?) {
+        guard toolTip != text, !isUnderMouse else { return }
+        toolTip = text
+    }
 }
 
 func twoLines(_ text: String) -> String {
@@ -614,17 +630,21 @@ class StatsPanel: NSWindow, NSWindowDelegate {
         content.layoutSubtreeIfNeeded()
         let size = content.fittingSize
         let top = frame.maxY
+        let resized = frame.size != size
         setFrame(NSRect(x: frame.minX, y: top - size.height, width: size.width, height: size.height), display: true)
-        refreshToolTips()
+        // Panels fit themselves every couple of seconds while open; only a new size moves
+        // their views, and setting a tooltip again makes a visible one blink.
+        if resized { refreshToolTips() }
     }
 
     /// AppKit registers a view's tooltip over the part of the view that is visible then.
     /// A view nested in stack views (the CPU panel's chart legends) can be laid out before
     /// its parents have a size, register over nothing, and never show its tooltip. Setting
-    /// every tooltip again once the panel is laid out registers each over its view as it is.
+    /// every tooltip again once the panel is laid out registers each over its view as it is
+    /// (except the one under the mouse, which would blink).
     func refreshToolTips(in view: NSView? = nil) {
         guard let view = view ?? contentView else { return }
-        if let tip = view.toolTip {
+        if let tip = view.toolTip, !view.isUnderMouse {
             view.toolTip = nil
             view.toolTip = tip
         }

@@ -300,7 +300,7 @@ final class TempPanel: StatsPanel {
             let limits = heatLimits(for: group.name)
             // Two lines: what the part is, then where its square turns yellow and red.
             let heatLine = "Yellow from \(degrees(limits.warm)), red from \(degrees(limits.hot))."
-            row.toolTip = (partDescription(group.name).map { $0 + "\n" } ?? "") + heatLine
+            row.setSteadyToolTip((partDescription(group.name).map { $0 + "\n" } ?? "") + heatLine)
         }
         temperatureList.setViews(groups.compactMap { temperatureRows[$0.name] }, in: .top)
         // Power rows come and go with the charger.
@@ -309,7 +309,7 @@ final class TempPanel: StatsPanel {
             let row = powerRows[line.id] ?? PanelRow(line.title + ":")
             powerRows[line.id] = row
             row.value.stringValue = line.value
-            row.toolTip = line.tooltip.map(twoLines)
+            row.setSteadyToolTip(line.tooltip.map(twoLines))
         }
         powerList.setViews(lines.compactMap { powerRows[$0.id] }, in: .top)
         let byKey = Dictionary(readings.map { ($0.sensor.key, $0) }, uniquingKeysWith: { first, _ in first })
