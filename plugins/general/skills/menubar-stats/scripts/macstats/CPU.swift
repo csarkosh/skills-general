@@ -326,34 +326,32 @@ final class CPUChart: NSView {
     }
 }
 
-/// A small chart of the last three minutes, half the panel wide: a title with the value
-/// now above it, and a key or the other figures below. Each series is a filled area or
-/// a line, on one scale; a missing sample leaves a gap.
+/// A small chart of the last three minutes, half the panel wide, under a small heading;
+/// its legend and values are rows below it, as the Usage chart's are. Each series is a
+/// filled area or a line, on one scale; a missing sample leaves a gap.
 final class MiniChart: NSView {
+    /// The heading above the chart ("Load").
     var title = ""
-    var caption = NSAttributedString()
     var series: [(values: [Double?], color: NSColor, filled: Bool)] = [] { didSet { needsDisplay = true } }
     var scale = 1.0
     /// A dashed line across the chart at this value, labelled at its right ("100%").
     var marker: (value: Double, label: String)?
     var capacity = 180
-    private let titleHeight: CGFloat = 16
-    private let captionHeight: CGFloat = 14
+    private let titleHeight: CGFloat = 15
 
     init(width: CGFloat) {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([widthAnchor.constraint(equalToConstant: width), heightAnchor.constraint(equalToConstant: 92)])
+        NSLayoutConstraint.activate([widthAnchor.constraint(equalToConstant: width), heightAnchor.constraint(equalToConstant: 84)])
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func draw(_ dirtyRect: NSRect) {
         NSAttributedString(string: title, attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.labelColor,
+            .font: NSFont.systemFont(ofSize: 10, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor,
         ]).draw(with: NSRect(x: 2, y: bounds.maxY - titleHeight + 2, width: bounds.width - 4, height: titleHeight - 2))
-        caption.draw(with: NSRect(x: 2, y: 1, width: bounds.width - 4, height: captionHeight - 3))
-        let plot = NSRect(x: 0, y: captionHeight, width: bounds.width, height: bounds.height - captionHeight - titleHeight - 2)
+        let plot = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - titleHeight)
         let frame = NSBezierPath(roundedRect: plot, xRadius: 5, yRadius: 5)
         NSColor.lightGray.withAlphaComponent(0.1).setFill()
         frame.fill()
@@ -419,6 +417,9 @@ func cpuItemText(_ sample: CPUSample) -> (value: String, tooltip: String) {
 
 func formatMHz(_ mhz: Double) -> String { "\(Int(mhz.rounded())) MHz" }
 
+/// MHz as GHz, without the unit: "3.68".
+func formatGHz(_ mhz: Double) -> String { String(format: "%.2f", mhz / 1000) }
+
 final class CPUPanel: StatsPanel {
     private let history: CPUHistory
     private let reader: SensorReader
@@ -430,6 +431,9 @@ final class CPUPanel: StatsPanel {
     private let typeRows = coreTypes.map { PanelRow($0.name + ":") }
     private let loadChart = MiniChart(width: (Panel.width - 10) / 2)
     private let frequencyChart = MiniChart(width: (Panel.width - 10) / 2)
+    private let loadRow = PanelRow("Load, last minute:", color: loadColor)
+    private let laterLoadRow = PanelRow("5 / 15 minutes:")
+    private let speedRows = coreTypes.map { PanelRow($0.name + ":", color: $0.color) }
     private let processRows = (0..<8).map { _ in ProcessRow() }
     private var processTimer: Timer?
 
@@ -474,15 +478,25 @@ final class CPUPanel: StatsPanel {
         charts.translatesAutoresizingMaskIntoConstraints = false
         charts.widthAnchor.constraint(equalToConstant: Panel.width).isActive = true
         body.addArrangedSubview(charts)
-        body.setCustomSpacing(4, after: charts)
+        body.setCustomSpacing(6, after: charts)
+        for row in [loadRow, laterLoadRow] + speedRows { body.addArrangedSubview(row) }
+        loadChart.title = "Load"
+        frequencyChart.title = "Frequency"
         loadChart.capacity = history.capacity
         frequencyChart.capacity = history.capacity
-        loadChart.toolTip = "How much of the CPU's \(ProcessInfo.processInfo.processorCount) cores the work wanted over the "
-            + "last three minutes: the 1-minute load average (the tasks running on a core or waiting for one) as a share "
-            + "of the cores. At 100%, the dashed line, every core was wanted; above it, tasks were queuing. "
-            + "Under it, the 5 and 15-minute averages."
-        frequencyChart.toolTip = "Each core type's average clock speed over the last three minutes, from 0 to its fastest "
-            + "step. The title gives all cores' average, weighted by core count; the key under it, each type's now, in MHz."
+        let cores = ProcessInfo.processInfo.processorCount
+        loadChart.toolTip = "Load over the last three minutes, as a share of the \(cores) cores. At 100%, the dashed line, "
+            + "every core was wanted; above it, tasks were queuing."
+        frequencyChart.toolTip = "Each core type's clock speed over the last three minutes, against the fastest it can go: "
+            + "a line at the top means those cores ran flat out."
+        loadRow.toolTip = "How much of the CPU's \(cores) cores the work wanted over the last minute: the load average "
+            + "(the tasks running on a core or waiting for one) as a share of the cores. At 100% every core was wanted; "
+            + "above it, tasks were queuing."
+        laterLoadRow.toolTip = "The same over the last 5 and 15 minutes."
+        for (row, type) in zip(speedRows, coreTypes) {
+            row.toolTip = "How fast the \(type.cores.count) \(type.name.lowercased()) ran over the last second, on average, "
+                + "and the fastest they can go."
+        }
 
         body.addArrangedSubview(separatorView("Top processes"))
         let heading = ProcessRow()
@@ -512,37 +526,33 @@ final class CPUPanel: StatsPanel {
         updateCharts(sample)
     }
 
-    /// Load and frequency: the charts from the history, their titles and keys from now.
+    /// Load and frequency: the charts from the history, their legend rows from now.
     private func updateCharts(_ sample: CPUSample) {
         let samples = history.samples
-        let small = { (text: String, color: NSColor) in
-            NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: color])
-        }
-        let loads = loadAverages()
         // A load average counts the tasks running on a core or waiting for one, so it
         // reads as a share of the cores: 100% means every core was wanted, above it tasks
-        // were queuing. The chart's top is 100%, or the peak if higher.
+        // were queuing. The chart reaches a little past 100%, or past the peak if higher,
+        // so the dashed 100% line sits inside it.
         let cores = Double(ProcessInfo.processInfo.processorCount)
+        let loads = loadAverages()
         let shares = samples.map { $0.load.map { $0 / cores } }
-        loadChart.title = "Load: " + (loads.first.map { formatPercent($0 / cores) + " of cores" } ?? "–")
-        loadChart.caption = loads.count == 3
-            ? small("5 min \(formatPercent(loads[1] / cores)) · 15 min \(formatPercent(loads[2] / cores))", .secondaryLabelColor)
-            : NSAttributedString()
-        loadChart.scale = max(1, shares.compactMap { $0 }.max() ?? 0)
+        loadChart.scale = max(1, shares.compactMap { $0 }.max() ?? 0) * 1.15
         loadChart.marker = (1, "100%")
         loadChart.series = [(shares, loadColor, true)]
+        loadRow.value.stringValue = loads.first.map { formatPercent($0 / cores) + " of cores" } ?? "–"
+        laterLoadRow.value.stringValue = loads.count == 3
+            ? "\(formatPercent(loads[1] / cores)) / \(formatPercent(loads[2] / cores))" : "–"
 
-        frequencyChart.title = "Frequency: " + (sample.frequencies.map { formatMHz(allCoresSpeed($0)) } ?? "–")
-        let key = NSMutableAttributedString()
-        for (index, type) in coreTypes.enumerated() {
-            if index > 0 { key.append(small("  ", .secondaryLabelColor)) }
-            key.append(small("● ", type.color))
-            key.append(small(type.short + " " + (sample.frequencies.map { String(Int($0[index].rounded())) } ?? "–"), .secondaryLabelColor))
-        }
-        frequencyChart.caption = key
-        frequencyChart.scale = coreTypes.compactMap { $0.steps.max() }.max() ?? 1
+        // Each core type against its own top speed, so a line near the top is flat out
+        // (the chart reaches a little past it, so that line does not sit on the edge).
+        frequencyChart.scale = 1.08
         frequencyChart.series = coreTypes.enumerated().map { index, type in
-            (samples.map { $0.frequencies?[index] }, type.color, false)
+            let top = type.steps.max() ?? 0
+            return (samples.map { sample in sample.frequencies.flatMap { top > 0 ? $0[index] / top : nil } }, type.color, false)
+        }
+        for (index, (row, type)) in zip(speedRows, coreTypes).enumerated() {
+            let top = type.steps.max().map(formatGHz) ?? "–"
+            row.value.stringValue = (sample.frequencies.map { formatGHz($0[index]) } ?? "–") + " of \(top) GHz"
         }
     }
 
