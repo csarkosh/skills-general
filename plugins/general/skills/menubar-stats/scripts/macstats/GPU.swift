@@ -357,9 +357,9 @@ final class GPUPanel: StatsPanel {
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
         // Two groups: the chart's rows, then the rows with their own small graphs
-        // (Framerate, ML engine, and Memory with its GB line under it), 4 pt apart.
+        // (Framerate, ML engine, and Memory with its GB line under it), 8 pt apart.
         for row in seriesRows { body.addArrangedSubview(row) }
-        if let tiler = seriesRows.last { body.setCustomSpacing(4, after: tiler) }
+        if let tiler = seriesRows.last { body.setCustomSpacing(8, after: tiler) }
         body.addArrangedSubview(fpsRow)
         body.addArrangedSubview(neuralRow)
         body.addArrangedSubview(memoryRow)
