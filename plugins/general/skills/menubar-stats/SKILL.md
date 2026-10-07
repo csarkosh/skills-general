@@ -101,10 +101,10 @@ chart with System (red) and User (blue) stacked from the bottom and Idle the spa
 those rows and Idle (grey) in the same colours, and each core type's usage (Efficiency cores,
 Performance cores, and from M5 on Super cores, from the cores' cluster letters in the registry).
 **Load & frequency**: two small three-minute charts side by side. Load is the 1-minute load
-average (how many tasks wanted a core) as a pink area, its top the Mac's core count or the peak if
-higher, titled with the value now against the cores (`Load: 3.27 / 10 cores`, since a load
-average counts tasks wanting a core and has no unit of its own), and the 5 and 15-minute
-averages under it. Frequency is
+average as a share of the cores, a pink area (`Load: 31% of cores`): a load average counts the
+tasks running on a core or waiting for one and has no unit of its own, so it reads against the
+cores there are. A dashed line marks 100%, every core wanted; above it tasks were queuing, and
+the chart's top rises to the peak. The 5 and 15-minute averages, as shares too, sit under it. Frequency is
 each core type's average clock speed as a line in Stats' colours (efficiency teal, performance
 indigo), from 0 to the fastest step, with all cores' average (weighted by core count) as its title
 and each type's speed now in the key under it. Speeds come from the time IOReport says each

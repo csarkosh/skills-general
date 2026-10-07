@@ -334,6 +334,8 @@ final class MiniChart: NSView {
     var caption = NSAttributedString()
     var series: [(values: [Double?], color: NSColor, filled: Bool)] = [] { didSet { needsDisplay = true } }
     var scale = 1.0
+    /// A dashed line across the chart at this value, labelled at its right ("100%").
+    var marker: (value: Double, label: String)?
     var capacity = 180
     private let titleHeight: CGFloat = 16
     private let captionHeight: CGFloat = 14
@@ -386,6 +388,21 @@ final class MiniChart: NSView {
                     path.stroke()
                 }
             }
+        }
+        if let marker {
+            let y = min(plot.maxY - 1, plot.minY + CGFloat(marker.value / scale) * plot.height)
+            let line = NSBezierPath()
+            line.move(to: CGPoint(x: plot.minX, y: y))
+            line.line(to: CGPoint(x: plot.maxX, y: y))
+            line.lineWidth = 1
+            line.setLineDash([3, 3], count: 2, phase: 0)
+            NSColor.secondaryLabelColor.setStroke()
+            line.stroke()
+            let label = NSAttributedString(string: marker.label, attributes: [
+                .font: NSFont.systemFont(ofSize: 8), .foregroundColor: NSColor.secondaryLabelColor,
+            ])
+            let size = label.size()
+            label.draw(at: CGPoint(x: plot.maxX - size.width - 4, y: y - size.height - 1))
         }
         NSGraphicsContext.restoreGraphicsState()
     }
@@ -460,9 +477,10 @@ final class CPUPanel: StatsPanel {
         body.setCustomSpacing(4, after: charts)
         loadChart.capacity = history.capacity
         frequencyChart.capacity = history.capacity
-        loadChart.toolTip = "The 1-minute load average over the last three minutes: how many tasks wanted a core. "
-            + "The chart's top is this Mac's \(ProcessInfo.processInfo.processorCount) cores (or the peak, if higher), "
-            + "so a full chart means every core was wanted. Under it, the 5 and 15-minute averages."
+        loadChart.toolTip = "How much of the CPU's \(ProcessInfo.processInfo.processorCount) cores the work wanted over the "
+            + "last three minutes: the 1-minute load average (the tasks running on a core or waiting for one) as a share "
+            + "of the cores. At 100%, the dashed line, every core was wanted; above it, tasks were queuing. "
+            + "Under it, the 5 and 15-minute averages."
         frequencyChart.toolTip = "Each core type's average clock speed over the last three minutes, from 0 to its fastest "
             + "step. The title gives all cores' average, weighted by core count; the key under it, each type's now, in MHz."
 
@@ -501,13 +519,18 @@ final class CPUPanel: StatsPanel {
             NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: color])
         }
         let loads = loadAverages()
-        // A load average counts tasks wanting a core, so it reads against the cores there are.
-        let cores = ProcessInfo.processInfo.processorCount
-        loadChart.title = "Load: " + (loads.first.map { String(format: "%.2f / %d cores", $0, cores) } ?? "–")
+        // A load average counts the tasks running on a core or waiting for one, so it
+        // reads as a share of the cores: 100% means every core was wanted, above it tasks
+        // were queuing. The chart's top is 100%, or the peak if higher.
+        let cores = Double(ProcessInfo.processInfo.processorCount)
+        let shares = samples.map { $0.load.map { $0 / cores } }
+        loadChart.title = "Load: " + (loads.first.map { formatPercent($0 / cores) + " of cores" } ?? "–")
         loadChart.caption = loads.count == 3
-            ? small(String(format: "5 min %.2f · 15 min %.2f", loads[1], loads[2]), .secondaryLabelColor) : NSAttributedString()
-        loadChart.scale = max(Double(cores), samples.compactMap(\.load).max() ?? 0)
-        loadChart.series = [(samples.map(\.load), loadColor, true)]
+            ? small("5 min \(formatPercent(loads[1] / cores)) · 15 min \(formatPercent(loads[2] / cores))", .secondaryLabelColor)
+            : NSAttributedString()
+        loadChart.scale = max(1, shares.compactMap { $0 }.max() ?? 0)
+        loadChart.marker = (1, "100%")
+        loadChart.series = [(shares, loadColor, true)]
 
         frequencyChart.title = "Frequency: " + (sample.frequencies.map { formatMHz(allCoresSpeed($0)) } ?? "–")
         let key = NSMutableAttributedString()
