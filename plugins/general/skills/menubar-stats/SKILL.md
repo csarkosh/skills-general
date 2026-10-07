@@ -206,7 +206,8 @@ macOS frees on its own: the panel's volumes count it as used, the menu bar (like
 Below, my apps / files is broken down into folders three levels deep (100 MB and over, biggest
 first; an app is one row), measured on the Data volume (`/System/Volumes/Data`) by allocated
 blocks like `du -x`. That takes about a minute, so the panel reuses a measurement for 10 minutes,
-and while it measures again it keeps showing the last one ("Updating… last measured at …"). The
+and while it measures again it keeps showing the last one: "Last measured at …" stays at the left
+of the line above the folders, and "*Remeasuring…*" shows in italics at its right. The
 last measurement is saved to `~/Library/Caches/sh.csarko.MacStats/folders.json`, so after a
 restart the panel opens with it instead of an empty list.
 The header's arrow measures again, its drive icon opens Storage settings, and double-clicking a

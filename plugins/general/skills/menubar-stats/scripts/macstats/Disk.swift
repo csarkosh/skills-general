@@ -279,8 +279,10 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
     private let measuring = NSTextField(wrappingLabelWithString: "")
     private let spinner = NSProgressIndicator()
     private let measuringNote = NSStackView()
-    /// Shown under the folder list once it is measured.
-    private let status = NSTextField(wrappingLabelWithString: "")
+    /// "Last measured at 9:41 PM." at the left of the line above the folder list, and
+    /// "Remeasuring…" in italics at its right while it measures again.
+    private let status = NSTextField(labelWithString: "")
+    private let remeasuring = NSTextField(labelWithString: "Remeasuring…")
     private let usedRow = PanelRow("Used:")
     private let bar = SpaceBar()
     private let spaceRows: [String: PanelRow] = Dictionary(uniqueKeysWithValues: spaceLegend.map {
@@ -356,7 +358,7 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         // fills its top instead.
         spinner.style = .spinning
         spinner.controlSize = .small
-        for text in [measuring, status] {
+        for text in [measuring, status, remeasuring] {
             text.font = .systemFont(ofSize: 10)
             text.textColor = .tertiaryLabelColor
             text.toolTip = "Private folders (Desktop, Documents, Downloads, Music, Movies, other apps' data, Mail, "
@@ -365,7 +367,8 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
                 + "than the volume. Double-click a folder to show it in Finder, whose Get Info shows a private folder's size."
         }
         measuring.preferredMaxLayoutWidth = Panel.width - 24
-        status.preferredMaxLayoutWidth = Panel.width
+        remeasuring.font = NSFontManager.shared.convert(.systemFont(ofSize: 10), toHaveTrait: .italicFontMask)
+        remeasuring.alignment = .right
         measuringNote.setViews([spinner, measuring], in: .leading)
         measuringNote.alignment = .top
         measuringNote.translatesAutoresizingMaskIntoConstraints = false
@@ -373,9 +376,14 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         folderArea.translatesAutoresizingMaskIntoConstraints = false
         folderArea.addSubview(scroll)
         folderArea.addSubview(measuringNote)
-        status.translatesAutoresizingMaskIntoConstraints = false
-        body.addArrangedSubview(status)
-        body.setCustomSpacing(6, after: status)
+        let statusLine = NSView()
+        statusLine.translatesAutoresizingMaskIntoConstraints = false
+        for text in [status, remeasuring] {
+            text.translatesAutoresizingMaskIntoConstraints = false
+            statusLine.addSubview(text)
+        }
+        body.addArrangedSubview(statusLine)
+        body.setCustomSpacing(6, after: statusLine)
         body.addArrangedSubview(folderArea)
 
         NSLayoutConstraint.activate([
@@ -389,8 +397,13 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
             measuringNote.trailingAnchor.constraint(equalTo: folderArea.trailingAnchor),
             measuringNote.topAnchor.constraint(equalTo: folderArea.topAnchor),
             // Room for its line, kept while measuring, so the panel does not jump.
-            status.widthAnchor.constraint(equalToConstant: Panel.width),
-            status.heightAnchor.constraint(equalToConstant: 14),
+            statusLine.widthAnchor.constraint(equalToConstant: Panel.width),
+            statusLine.heightAnchor.constraint(equalToConstant: 14),
+            status.leadingAnchor.constraint(equalTo: statusLine.leadingAnchor),
+            status.centerYAnchor.constraint(equalTo: statusLine.centerYAnchor),
+            remeasuring.trailingAnchor.constraint(equalTo: statusLine.trailingAnchor),
+            remeasuring.centerYAnchor.constraint(equalTo: statusLine.centerYAnchor),
+            remeasuring.leadingAnchor.constraint(greaterThanOrEqualTo: status.trailingAnchor, constant: 8),
         ])
         updateStatus()
     }
@@ -475,10 +488,12 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         measuring.stringValue = "Measuring folders, about a minute… " + privacy
         if let measuredAt {
             let time = DateFormatter.localizedString(from: measuredAt, dateStyle: .none, timeStyle: .short)
-            status.stringValue = scanning ? "Updating… last measured at \(time)." : "Last measured at \(time)."
+            status.stringValue = "Last measured at \(time)."
         } else {
             status.stringValue = ""
         }
+        // Before the first measurement the measuring note says so instead.
+        remeasuring.isHidden = !(scanning && measuredAt != nil)
         fitToContents()
     }
 

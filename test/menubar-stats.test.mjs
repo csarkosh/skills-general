@@ -63,13 +63,15 @@ describe('menubar-stats', () => {
 
     it('renders the CPU item as its usage, as wide for any value', (t) => {
       const png = join(tempDir(t, 'macstats-png'), 'cpu.png');
-      assert.match(runOk(binary, ['--render', 'cpu', png]).stdout, /^\d+%\n$/);
+      const cpu = runOk(binary, ['--render', 'cpu', png]).stdout;
+      assert.match(cpu, /^\d+%\n$/, `prints the CPU's usage, not ${JSON.stringify(cpu)}`);
       isPng(png);
       // The item is as wide as "100%" whatever it shows, so the items beside it never shift.
       const width = (file) => readFileSync(file).readUInt32BE(16);
       const ram = join(tempDir(t, 'macstats-png'), 'ram.png');
-      runOk(binary, ['--render', 'ram', ram]);
-      assert.equal(width(png), width(ram), 'the CPU and RAM items are as wide, whatever their values');
+      const memory = runOk(binary, ['--render', 'ram', ram]).stdout;
+      assert.equal(width(png), width(ram),
+        `the CPU and RAM items are as wide whatever their values (CPU ${cpu.trim()}, RAM ${memory.trim()})`);
     });
 
     it('reads the CPU: System, User and Idle add up, each core type, load, clock speeds and processes', () => {
