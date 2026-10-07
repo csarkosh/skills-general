@@ -1,6 +1,6 @@
 // The GPU menu bar item: "GPU" over its utilization, and a panel with two gauges
 // (utilization, and GPU temperature on the chip's limits), Usage (a history chart
-// and the GPU's figures, ML engine, Framerate and Memory each with a small graph) and Top GPU
+// and the GPU's figures, then Memory, Framerate and ML engine each with a small graph) and Top GPU
 // apps. The figures are
 // the ones the Stats app reads (Modules/GPU/reader.swift, MIT; see LICENSE-stats.txt
 // beside this file): the accelerator's PerformanceStatistics, and on Apple silicon
@@ -209,8 +209,8 @@ let gpuMemoryColor = NSColor.systemTeal
 let gpuEngineColor = NSColor.systemPurple
 let gpuFramesColor = NSColor.systemGreen
 
-/// The widest value beside a graph, "120 fps", so the graphs line up in one column.
-let graphValueColumn = ceil(NSAttributedString(string: "120 fps", attributes: [.font: NSFont.systemFont(ofSize: 13)]).size().width)
+/// The widest value beside a graph, "120 Hz", so the graphs line up in one column.
+let graphValueColumn = ceil(NSAttributedString(string: "120 Hz", attributes: [.font: NSFont.systemFont(ofSize: 13)]).size().width)
 
 /// The fastest any display redraws (60, or 120 with ProMotion): the framerate graph's top.
 var displayMaxFPS: Double { Double(NSScreen.screens.map(\.maximumFramesPerSecond).max() ?? 60) }
@@ -356,15 +356,17 @@ final class GPUPanel: StatsPanel {
         chart.history = history
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
-        for row in seriesRows + [neuralRow, fpsRow, memoryRow] { body.addArrangedSubview(row) }
-        // A point of room between the chart's rows and the ones with their own graphs.
-        if let tiler = seriesRows.last { body.setCustomSpacing(1, after: tiler) }
+        // Two groups: the chart's rows, then the rows with their own small graphs (Memory
+        // with its GB line under it, Framerate, ML engine), 2 pt apart.
+        for row in seriesRows { body.addArrangedSubview(row) }
+        if let tiler = seriesRows.last { body.setCustomSpacing(2, after: tiler) }
+        body.addArrangedSubview(memoryRow)
         seriesRows[0].hoverTip = twoLines("Time the GPU was busy with any work: the screen, games, video, compute.")
         seriesRows[1].hoverTip = twoLines("Time spent colouring pixels, the last step in drawing each frame.")
         seriesRows[2].hoverTip = twoLines("Time spent sorting each frame's shapes into screen tiles, before colouring them.")
         neuralRow.hoverTip = twoLines("How busy the machine-learning cores are, from their power against their peak.")
-        fpsRow.hoverTip = twoLines("Frames shown in the last second. The graph tops out at "
-            + "\(Int(displayMaxFPS)), the display's fastest.")
+        fpsRow.hoverTip = twoLines("Frames shown per second. The graph tops out at "
+            + "\(Int(displayMaxFPS)) Hz, the display's fastest.")
         for (sparkline, row) in [(engineSparkline, neuralRow), (framesSparkline, fpsRow), (memorySparkline, memoryRow)] {
             sparkline.capacity = history.capacity
             sparkline.place(in: row, valueColumn: graphValueColumn)
@@ -375,7 +377,9 @@ final class GPUPanel: StatsPanel {
         memoryDetail.translatesAutoresizingMaskIntoConstraints = false
         memoryDetail.widthAnchor.constraint(equalToConstant: Panel.width).isActive = true
         body.addArrangedSubview(memoryDetail)
-        body.setCustomSpacing(2, after: memoryDetail)
+        body.addArrangedSubview(fpsRow)
+        body.addArrangedSubview(neuralRow)
+        body.setCustomSpacing(2, after: neuralRow)
 
         body.addArrangedSubview(separatorView("Top GPU apps"))
         let heading = ProcessRow()
@@ -409,7 +413,7 @@ final class GPUPanel: StatsPanel {
         }
         for (row, series) in zip(seriesRows, gpuSeries) { row.value.stringValue = formatPercent(series.value(sample)) }
         neuralRow.value.stringValue = sample.neuralEngine.map(formatPercent) ?? "–"
-        fpsRow.value.stringValue = sample.fps.map { String(format: "%.0f fps", $0) } ?? "–"
+        fpsRow.value.stringValue = sample.fps.map { String(format: "%.0f Hz", $0) } ?? "–"
         memoryRow.value.stringValue = formatPercent(sample.memoryInUse / gpuMemoryLimit)
         memoryDetail.stringValue = "\(formatGB(sample.memoryInUse)) / \(formatGB(gpuMemoryLimit)) GB"
         memorySparkline.fractions = history.samples.map { $0.memoryInUse / gpuMemoryLimit }
