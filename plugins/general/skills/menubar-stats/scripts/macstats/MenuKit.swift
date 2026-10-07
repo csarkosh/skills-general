@@ -92,7 +92,11 @@ final class MenuBarItem: NSObject {
     var button: NSStatusBarButton? { item.button }
 
     func show(_ value: String, tooltip: String, alert: Bool = false) {
-        item.button?.setSteadyToolTip(twoLines(tooltip))
+        // AppKit's tooltip, set only when its text changes and not while the pointer is on
+        // the item: setting one again hides and shows it, so one set every second blinks.
+        if let button = item.button, button.toolTip != twoLines(tooltip), !button.isUnderMouse {
+            button.toolTip = twoLines(tooltip)
+        }
         guard value != view.value || alert != view.alert else { return }
         view.value = value
         view.alert = alert
@@ -315,13 +319,6 @@ extension NSView {
         return bounds.contains(convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil))
     }
 
-    /// Sets a tooltip that is updated again and again (every second with the readings):
-    /// only when its text changes, and never while the mouse is over the view. AppKit
-    /// hides and shows a tooltip again whenever it is set, so one set every second blinks.
-    func setSteadyToolTip(_ text: String?) {
-        guard toolTip != text, !isUnderMouse else { return }
-        toolTip = text
-    }
 }
 
 func twoLines(_ text: String) -> String {
@@ -501,6 +498,8 @@ func gaugeFraction(_ value: Double, low: Double, warm: Double, hot: Double, high
 /// It closes when it stops being the key window, as Stats' do.
 class StatsPanel: NSWindow, NSWindowDelegate {
     let body = NSStackView()
+    /// Shows the panel's tooltips (see HoverTip.swift).
+    private lazy var hoverTracker = HoverTracker(panel: self)
     private let header = NSStackView()
     private let titleField = NSTextField(labelWithString: "")
 
@@ -524,6 +523,7 @@ class StatsPanel: NSWindow, NSWindowDelegate {
         background.blendingMode = .behindWindow
         background.state = .active
         contentView = background
+        hoverTracker.install(on: background)
 
         titleField.stringValue = title
         titleField.font = .systemFont(ofSize: 16)
@@ -559,7 +559,7 @@ class StatsPanel: NSWindow, NSWindowDelegate {
                               target: self, action: action)
         button.isBordered = false
         button.contentTintColor = .secondaryLabelColor
-        button.toolTip = tip
+        button.hoverTip = tip
         button.widthAnchor.constraint(equalToConstant: 24).isActive = true
         return button
     }
@@ -584,6 +584,7 @@ class StatsPanel: NSWindow, NSWindowDelegate {
     /// Closes the panel, as a click outside it or on its item does.
     func dismiss() {
         guard isVisible else { return }
+        HoverTips.shared.reset()
         orderOut(nil)
         dismissedAt = Date()
         if let outsideClicks { NSEvent.removeMonitor(outsideClicks) }
@@ -617,7 +618,6 @@ class StatsPanel: NSWindow, NSWindowDelegate {
         // If macOS declines to bring MacStats forward (another app has focus), show the
         // panel on top anyway.
         orderFrontRegardless()
-        refreshToolTips()
         StatsPanel.openPanel = self
         outsideClicks = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
             [weak self] _ in self?.dismiss()
@@ -630,24 +630,7 @@ class StatsPanel: NSWindow, NSWindowDelegate {
         content.layoutSubtreeIfNeeded()
         let size = content.fittingSize
         let top = frame.maxY
-        let resized = frame.size != size
         setFrame(NSRect(x: frame.minX, y: top - size.height, width: size.width, height: size.height), display: true)
-        // Panels fit themselves every couple of seconds while open; only a new size moves
-        // their views, and setting a tooltip again makes a visible one blink.
-        if resized { refreshToolTips() }
     }
 
-    /// AppKit registers a view's tooltip over the part of the view that is visible then.
-    /// A view nested in stack views (the CPU panel's chart legends) can be laid out before
-    /// its parents have a size, register over nothing, and never show its tooltip. Setting
-    /// every tooltip again once the panel is laid out registers each over its view as it is
-    /// (except the one under the mouse, which would blink).
-    func refreshToolTips(in view: NSView? = nil) {
-        guard let view = view ?? contentView else { return }
-        if let tip = view.toolTip, !view.isUnderMouse {
-            view.toolTip = nil
-            view.toolTip = tip
-        }
-        view.subviews.forEach { refreshToolTips(in: $0) }
-    }
 }

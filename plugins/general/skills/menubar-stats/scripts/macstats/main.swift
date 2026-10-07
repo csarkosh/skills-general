@@ -157,10 +157,10 @@ func tooltipsReport() -> Int32 {
     ]
     func tips(in view: NSView) -> [(kind: String, name: String, tip: String)] {
         if let row = view as? PanelRow, row.isKey {
-            return [("key", row.label.stringValue.trimmingCharacters(in: CharacterSet(charactersIn: ":")), row.toolTip ?? "")]
+            return [("key", row.label.stringValue.trimmingCharacters(in: CharacterSet(charactersIn: ":")), row.hoverTip ?? "")]
         }
-        if let line = view as? LegendLine { return [("key", line.title, line.toolTip ?? "")] }
-        let own: [(kind: String, name: String, tip: String)] = view.toolTip.map { tip in
+        if let line = view as? LegendLine { return [("key", line.title, line.hoverTip ?? "")] }
+        let own: [(kind: String, name: String, tip: String)] = view.hoverTip.map { tip in
             [("other", (view as? PanelRow)?.label.stringValue ?? String(describing: type(of: view)), tip)]
         } ?? []
         return own + view.subviews.flatMap(tips)

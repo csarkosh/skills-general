@@ -28,7 +28,7 @@ shows only the free space, in whole GB, to stay narrow (about 50 pt, from about 
 
 Each feature is one file, so a later App Store edition can leave one out (the sandbox forbids the
 SMC reads and the disk-wide folder walk): `MenuKit.swift` (the item and the panel's look, shared),
-`CPU.swift`, `GPU.swift` (both with `IOReport.swift`, the private counters they read), `RAM.swift`, `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
+`HoverTip.swift` (the panels' tooltips), `CPU.swift`, `GPU.swift` (both with `IOReport.swift`, the private counters they read), `RAM.swift`, `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
 `Battery.swift` (the battery's charge, for Temp's Power section), `AppIcon.swift` (the app's icon,
 the CS logo of csarko.sh, drawn in code), and `main.swift` (starts them all, and the command
 line). `SMC.swift` and `SensorCatalog.swift` are adapted
@@ -94,12 +94,15 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 
 Every legend key (a row with a coloured square, or a chart's legend line) has a tooltip that says
 what it is, for someone hovering to find out: what System or Wired memory is, what the recovery
-volume holds, what a Temp row's part is. Every tooltip is at most two short lines: `twoLines` in
-`MenuKit.swift` breaks one that is longer than 240 pt of the tooltip font at the space that best
-balances two lines (macOS wraps tooltips only wider than that). `MacStats --tooltips` lists every
-panel's tooltips with their lines and widths, and a test fails a key without one or a tooltip past
-two lines (folder paths in Disk excepted). Tooltips appear after 0.75 s, half AppKit's 1.5 s: MacStats
-registers `NSInitialToolTipDelay` 750 as its own default, so a delay the user set themselves wins.
+volume holds, what a Temp row's part is. The panels draw their own tooltips (`HoverTip.swift`), not
+AppKit's: one shows after 0.75 s, half AppKit's 1.5 s (`NSInitialToolTipDelay`, which a user's own
+setting overrides), and stays for as long as the pointer stays on its view, clicks included;
+moving straight on to another swaps it at once, and text that follows the readings updates in
+place. AppKit's hide on any click, blink when set again, and missed views nested in stack views.
+(The menu bar items keep AppKit's.) Every tooltip is at most two short lines: `twoLines` in
+`MenuKit.swift` breaks one longer than 240 pt of the tooltip font at the space that best balances
+two lines. `MacStats --tooltips` lists every panel's tooltips with their lines and widths, and a
+test fails a key without one or a tooltip past two lines (folder paths in Disk excepted).
 
 From a terminal, `MacStats --cpu` prints the CPU panel, `--gpu` the GPU panel, `--memory` the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
 temperatures' weighted value, `--spaces` the disk's five volumes, `--legend` the Disk panel's

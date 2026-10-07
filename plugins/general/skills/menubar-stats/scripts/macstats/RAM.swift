@@ -276,9 +276,9 @@ final class RAMPanel: StatsPanel {
             "Compressed": "App memory packed down to make room, rather than moved to disk.",
             "Free": "Unused memory, plus caches macOS drops when needed. Little free is normal.",
         ]
-        for (row, part) in zip(partRows, memoryParts) { row.toolTip = tips[part.title].map(twoLines) }
+        for (row, part) in zip(partRows, memoryParts) { row.hoverTip = tips[part.title].map(twoLines) }
         body.addArrangedSubview(swapRow)
-        swapRow.toolTip = twoLines("Disk used as overflow when memory runs short. Its graph is scaled to your RAM.")
+        swapRow.hoverTip = twoLines("Disk used as overflow when memory runs short. Its graph is scaled to your RAM.")
         swapSparkline.capacity = history.capacity
         swapSparkline.place(in: swapRow)
 

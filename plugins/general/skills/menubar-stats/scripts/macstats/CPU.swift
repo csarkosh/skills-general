@@ -461,8 +461,8 @@ final class CPUPanel: StatsPanel {
         usageGauge.heading = "Usage"
         heatGauge.heading = "Temperature"
         usageGauge.subtitle = "\(cpuModel), \(ProcessInfo.processInfo.processorCount) cores"
-        usageGauge.toolTip = twoLines("How busy the CPU is: normal under 60%, busy under 80%, heavy above.")
-        heatGauge.toolTip = twoLines("The CPU's temperature, coloured on the chip's limits as in the Temp menu.")
+        usageGauge.hoverTip = twoLines("How busy the CPU is: normal under 60%, busy under 80%, heavy above.")
+        heatGauge.hoverTip = twoLines("The CPU's temperature, coloured on the chip's limits as in the Temp menu.")
         body.addArrangedSubview(dashboard)
 
         body.addArrangedSubview(separatorView("Usage"))
@@ -470,9 +470,9 @@ final class CPUPanel: StatsPanel {
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
         for row in partRows + [idleRow] { body.addArrangedSubview(row) }
-        partRows[0].toolTip = twoLines("Time spent running macOS itself: the kernel and drivers working for apps.")
-        partRows[1].toolTip = twoLines("Time spent running apps. Top processes below shows which ones.")
-        idleRow.toolTip = twoLines("Time with nothing to run. Idle cores sleep, saving heat and battery.")
+        partRows[0].hoverTip = twoLines("Time spent running macOS itself: the kernel and drivers working for apps.")
+        partRows[1].hoverTip = twoLines("Time spent running apps. Top processes below shows which ones.")
+        idleRow.hoverTip = twoLines("Time with nothing to run. Idle cores sleep, saving heat and battery.")
 
         body.addArrangedSubview(separatorView("Load & frequency"))
         let column = { (chart: MiniChart, legend: [LegendLine]) -> NSStackView in
@@ -495,11 +495,11 @@ final class CPUPanel: StatsPanel {
         loadChart.capacity = history.capacity
         frequencyChart.capacity = history.capacity
         let cores = ProcessInfo.processInfo.processorCount
-        loadChart.toolTip = twoLines("The last 3 minutes of core load. Above the dashed 100% line, tasks had to wait.")
-        frequencyChart.toolTip = twoLines("Each core type's speed over the last 3 minutes, against its top speed.")
-        loadLegend.toolTip = twoLines("Tasks running on or waiting for the \(cores) cores, as a share of them. Over 100%, tasks wait.")
+        loadChart.hoverTip = twoLines("The last 3 minutes of core load. Above the dashed 100% line, tasks had to wait.")
+        frequencyChart.hoverTip = twoLines("Each core type's speed over the last 3 minutes, against its top speed.")
+        loadLegend.hoverTip = twoLines("Tasks running on or waiting for the \(cores) cores, as a share of them. Over 100%, tasks wait.")
         for (legend, type) in zip(speedLegends, coreTypes) {
-            legend.toolTip = twoLines("The \(type.cores.count) \(type.about). Speed now, of their top speed.")
+            legend.hoverTip = twoLines("The \(type.cores.count) \(type.about). Speed now, of their top speed.")
         }
 
         body.addArrangedSubview(separatorView("Top processes"))

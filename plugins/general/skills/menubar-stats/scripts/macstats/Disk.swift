@@ -325,7 +325,7 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
             "Purgeable": "Caches and copies macOS frees when it needs room; free in the menu bar.",
             "Free": "Space left for new files.",
         ]
-        for (title, row) in spaceRows { row.toolTip = tips[title].map(twoLines) }
+        for (title, row) in spaceRows { row.hoverTip = tips[title].map(twoLines) }
         for row in Array(spaceRows.values) + [usedRow] { row.value.stringValue = "…" }
         body.addArrangedSubview(separatorView("My apps / files"))
 
@@ -367,7 +367,7 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         for text in [measuring, status, remeasuring] {
             text.font = .systemFont(ofSize: 10)
             text.textColor = .tertiaryLabelColor
-            text.toolTip = twoLines("Private folders are never opened; ≥ means at least. Double-click to show in Finder.")
+            text.hoverTip = twoLines("Private folders are never opened; ≥ means at least. Double-click to show in Finder.")
         }
         measuring.preferredMaxLayoutWidth = Panel.width - 24
         remeasuring.font = NSFontManager.shared.convert(.systemFont(ofSize: 10), toHaveTrait: .italicFontMask)
@@ -556,7 +556,7 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
             cell.textField?.stringValue = entry.title
             cell.textField?.font = .systemFont(ofSize: 12)
             cell.textField?.textColor = .secondaryLabelColor
-            cell.toolTip = entry.path
+            cell.hoverTip = entry.path
         }
         return cell
     }

@@ -348,8 +348,8 @@ final class GPUPanel: StatsPanel {
         ])
         utilizationGauge.heading = "Utilization"
         heatGauge.heading = "Temperature"
-        utilizationGauge.toolTip = twoLines("How busy the GPU is: normal under 60%, busy under 80%, heavy above.")
-        heatGauge.toolTip = twoLines("The GPU's temperature, coloured on the chip's limits as in the Temp menu.")
+        utilizationGauge.hoverTip = twoLines("How busy the GPU is: normal under 60%, busy under 80%, heavy above.")
+        heatGauge.hoverTip = twoLines("The GPU's temperature, coloured on the chip's limits as in the Temp menu.")
         body.addArrangedSubview(dashboard)
 
         body.addArrangedSubview(separatorView("Usage"))
@@ -359,11 +359,11 @@ final class GPUPanel: StatsPanel {
         for row in seriesRows + [neuralRow, fpsRow, memoryRow] { body.addArrangedSubview(row) }
         // A point of room between the chart's rows and the ones with their own graphs.
         if let tiler = seriesRows.last { body.setCustomSpacing(1, after: tiler) }
-        seriesRows[0].toolTip = twoLines("Time the GPU was busy with any work: the screen, games, video, compute.")
-        seriesRows[1].toolTip = twoLines("Time spent colouring pixels, the last step in drawing each frame.")
-        seriesRows[2].toolTip = twoLines("Time spent sorting each frame's shapes into screen tiles, before colouring them.")
-        neuralRow.toolTip = twoLines("How busy the machine-learning cores are, from their power against their peak.")
-        fpsRow.toolTip = twoLines("Frames shown in the last second. The graph tops out at "
+        seriesRows[0].hoverTip = twoLines("Time the GPU was busy with any work: the screen, games, video, compute.")
+        seriesRows[1].hoverTip = twoLines("Time spent colouring pixels, the last step in drawing each frame.")
+        seriesRows[2].hoverTip = twoLines("Time spent sorting each frame's shapes into screen tiles, before colouring them.")
+        neuralRow.hoverTip = twoLines("How busy the machine-learning cores are, from their power against their peak.")
+        fpsRow.hoverTip = twoLines("Frames shown in the last second. The graph tops out at "
             + "\(Int(displayMaxFPS)), the display's fastest.")
         for (sparkline, row) in [(engineSparkline, neuralRow), (framesSparkline, fpsRow), (memorySparkline, memoryRow)] {
             sparkline.capacity = history.capacity
@@ -418,8 +418,8 @@ final class GPUPanel: StatsPanel {
         framesSparkline.fractions = history.samples.map { ($0.fps ?? 0) / maxFPS }
         let tooltip = twoLines("GPU memory in use, of the \(formatMemory(gpuMemoryLimit)) macOS lets it use. "
             + "It holds \(formatMemory(sample.memoryAllocated)) set aside.")
-        memoryRow.setSteadyToolTip(tooltip)
-        memoryDetail.setSteadyToolTip(tooltip)
+        memoryRow.hoverTip = tooltip
+        memoryDetail.hoverTip = tooltip
     }
 
     override func willOpen() {
