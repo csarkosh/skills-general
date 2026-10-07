@@ -102,18 +102,18 @@ change the cut-off), and `--show-panel temp|disk[,…]` starts it and opens thos
 Two gauges like Temp's: usage (System plus User) on Stats' own zones (normal below 60%, busy below
 80%, heavy from 80%), and the CPU's temperature on the chip's limits. **Usage**: a three-minute
 chart with System (red) and User (blue) stacked from the bottom and Idle the space above, then
-those rows and Idle (grey) in the same colours, and each core type's usage (Efficiency cores,
-Performance cores, and from M5 on Super cores, from the cores' cluster letters in the registry).
-**Load & frequency**: two small three-minute charts side by side, each under a small heading, with
-their legend as coloured rows below them, as Usage's are. Load is the 1-minute load average as a
-share of the cores, a pink area: a load average counts the tasks running on a core or waiting for
-one and has no unit of its own, so it reads against the cores there are. A dashed line marks 100%,
-every core wanted; above it tasks were queuing. Its rows: `Load, last minute: 31% of cores` and
-`5 / 15 minutes: 46% / 56%`. Frequency draws each core type's clock speed as a line in Stats'
+those rows and Idle (grey) in the same colours. The core types (efficiency, performance, and from
+M5 on super cores) come from the cores' cluster letters in the registry.
+**Load & frequency**: two small three-minute charts side by side, "Core load" and "Core
+frequency", each with its legend in small type under it: a coloured dot, a name and the value now.
+Core load is the 1-minute load average as a share of the cores, a pink area (`Load 31% of
+cores`): a load average counts the tasks running on a core or waiting for one and has no unit of
+its own, so it reads against the cores there are. A dashed line marks 100%, every core wanted;
+above it tasks were queuing. Core frequency draws each core type's clock speed as a line in Stats'
 colours (efficiency teal, performance indigo) against that type's own top speed, so a line near
-the top means those cores ran flat out; its rows read `Performance cores: 3.68 of 4.46 GHz`.
-Speeds come from the time IOReport says each cluster spent at each clock step over the last second
-(the steps from the power manager's voltage tables), as Stats reads them.
+the top means those cores ran flat out (`P-cores 3.68 of 4.46 GHz`). Speeds come from the time
+IOReport says each cluster spent at each clock step over the last second (the steps from the
+power manager's voltage tables), as Stats reads them.
 **Top processes**: `ps`'s %CPU, as Stats lists them (macOS averages it over the last minute or so),
 refreshed every two seconds while the panel is open; the header's icon opens Activity Monitor.
 System, User and Idle are Stats' figures from the CPU's tick counts, User without "nice" time.

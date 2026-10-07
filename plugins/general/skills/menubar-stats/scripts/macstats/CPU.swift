@@ -409,6 +409,45 @@ final class MiniChart: NSView {
 /// The load chart's colour.
 let loadColor = NSColor.systemPink
 
+/// One line of a small chart's legend, as wide as the chart above it: a coloured dot, a
+/// name and a value, in small type.
+final class LegendLine: NSView {
+    let value = NSTextField(labelWithString: "")
+
+    init(_ title: String, color: NSColor, width: CGFloat) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        let dot = NSView()
+        dot.wantsLayer = true
+        dot.layer?.backgroundColor = color.cgColor
+        dot.layer?.cornerRadius = 2
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 9)
+        label.textColor = .secondaryLabelColor
+        value.font = .systemFont(ofSize: 9)
+        value.alignment = .right
+        for view in [dot, label, value] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: width),
+            heightAnchor.constraint(equalToConstant: 13),
+            dot.widthAnchor.constraint(equalToConstant: 7),
+            dot.heightAnchor.constraint(equalToConstant: 7),
+            dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            dot.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 4),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            value.trailingAnchor.constraint(equalTo: trailingAnchor),
+            value.centerYAnchor.constraint(equalTo: centerYAnchor),
+            value.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 5),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
 /// What the CPU item shows: its usage.
 func cpuItemText(_ sample: CPUSample) -> (value: String, tooltip: String) {
     (formatPercent(sample.usage),
@@ -428,12 +467,12 @@ final class CPUPanel: StatsPanel {
     private let chart = CPUChart()
     private let partRows = cpuParts.map { PanelRow($0.title + ":", color: $0.color) }
     private let idleRow = PanelRow("Idle:", color: cpuIdleColor)
-    private let typeRows = coreTypes.map { PanelRow($0.name + ":") }
-    private let loadChart = MiniChart(width: (Panel.width - 10) / 2)
-    private let frequencyChart = MiniChart(width: (Panel.width - 10) / 2)
-    private let loadRow = PanelRow("Load, last minute:", color: loadColor)
-    private let laterLoadRow = PanelRow("5 / 15 minutes:")
-    private let speedRows = coreTypes.map { PanelRow($0.name + ":", color: $0.color) }
+    /// Load and frequency share the panel's width, each chart with its legend under it.
+    private static let halfWidth = (Panel.width - 10) / 2
+    private let loadChart = MiniChart(width: halfWidth)
+    private let frequencyChart = MiniChart(width: halfWidth)
+    private let loadLegend = LegendLine("Load", color: loadColor, width: halfWidth)
+    private let speedLegends = coreTypes.map { LegendLine("\($0.short)-cores", color: $0.color, width: halfWidth) }
     private let processRows = (0..<8).map { _ in ProcessRow() }
     private var processTimer: Timer?
 
@@ -464,24 +503,28 @@ final class CPUPanel: StatsPanel {
         chart.history = history
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
-        for row in partRows + [idleRow] + typeRows { body.addArrangedSubview(row) }
+        for row in partRows + [idleRow] { body.addArrangedSubview(row) }
         partRows[0].toolTip = "Time the CPU spent running macOS itself."
         partRows[1].toolTip = "Time the CPU spent running apps."
-        for (row, type) in zip(typeRows, coreTypes) {
-            row.toolTip = "How busy the \(type.cores.count) \(type.name.lowercased()) are, on average."
-        }
 
         body.addArrangedSubview(separatorView("Load & frequency"))
-        let charts = NSStackView(views: [loadChart, frequencyChart])
+        let column = { (chart: MiniChart, legend: [LegendLine]) -> NSStackView in
+            let stack = NSStackView(views: [chart] + legend)
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.spacing = 1
+            stack.setCustomSpacing(5, after: chart)
+            return stack
+        }
+        let charts = NSStackView(views: [column(loadChart, [loadLegend]), column(frequencyChart, speedLegends)])
         charts.orientation = .horizontal
+        charts.alignment = .top
         charts.spacing = 10
         charts.translatesAutoresizingMaskIntoConstraints = false
         charts.widthAnchor.constraint(equalToConstant: Panel.width).isActive = true
         body.addArrangedSubview(charts)
-        body.setCustomSpacing(6, after: charts)
-        for row in [loadRow, laterLoadRow] + speedRows { body.addArrangedSubview(row) }
-        loadChart.title = "Load"
-        frequencyChart.title = "Frequency"
+        loadChart.title = "Core load"
+        frequencyChart.title = "Core frequency"
         loadChart.capacity = history.capacity
         frequencyChart.capacity = history.capacity
         let cores = ProcessInfo.processInfo.processorCount
@@ -489,12 +532,11 @@ final class CPUPanel: StatsPanel {
             + "every core was wanted; above it, tasks were queuing."
         frequencyChart.toolTip = "Each core type's clock speed over the last three minutes, against the fastest it can go: "
             + "a line at the top means those cores ran flat out."
-        loadRow.toolTip = "How much of the CPU's \(cores) cores the work wanted over the last minute: the load average "
+        loadLegend.toolTip = "How much of the CPU's \(cores) cores the work wanted over the last minute: the load average "
             + "(the tasks running on a core or waiting for one) as a share of the cores. At 100% every core was wanted; "
             + "above it, tasks were queuing."
-        laterLoadRow.toolTip = "The same over the last 5 and 15 minutes."
-        for (row, type) in zip(speedRows, coreTypes) {
-            row.toolTip = "How fast the \(type.cores.count) \(type.name.lowercased()) ran over the last second, on average, "
+        for (legend, type) in zip(speedLegends, coreTypes) {
+            legend.toolTip = "How fast the \(type.cores.count) \(type.name.lowercased()) ran over the last second, on average, "
                 + "and the fastest they can go."
         }
 
@@ -522,11 +564,10 @@ final class CPUPanel: StatsPanel {
         }
         for (row, part) in zip(partRows, cpuParts) { row.value.stringValue = formatPercent(part.value(sample)) }
         idleRow.value.stringValue = formatPercent(sample.idle)
-        for (row, usage) in zip(typeRows, sample.coreUsage) { row.value.stringValue = formatPercent(usage) }
         updateCharts(sample)
     }
 
-    /// Load and frequency: the charts from the history, their legend rows from now.
+    /// Load and frequency: the charts from the history, their legends from now.
     private func updateCharts(_ sample: CPUSample) {
         let samples = history.samples
         // A load average counts the tasks running on a core or waiting for one, so it
@@ -539,9 +580,7 @@ final class CPUPanel: StatsPanel {
         loadChart.scale = max(1, shares.compactMap { $0 }.max() ?? 0) * 1.15
         loadChart.marker = (1, "100%")
         loadChart.series = [(shares, loadColor, true)]
-        loadRow.value.stringValue = loads.first.map { formatPercent($0 / cores) + " of cores" } ?? "–"
-        laterLoadRow.value.stringValue = loads.count == 3
-            ? "\(formatPercent(loads[1] / cores)) / \(formatPercent(loads[2] / cores))" : "–"
+        loadLegend.value.stringValue = loads.first.map { formatPercent($0 / cores) + " of cores" } ?? "–"
 
         // Each core type against its own top speed, so a line near the top is flat out
         // (the chart reaches a little past it, so that line does not sit on the edge).
@@ -550,9 +589,9 @@ final class CPUPanel: StatsPanel {
             let top = type.steps.max() ?? 0
             return (samples.map { sample in sample.frequencies.flatMap { top > 0 ? $0[index] / top : nil } }, type.color, false)
         }
-        for (index, (row, type)) in zip(speedRows, coreTypes).enumerated() {
+        for (index, (legend, type)) in zip(speedLegends, coreTypes).enumerated() {
             let top = type.steps.max().map(formatGHz) ?? "–"
-            row.value.stringValue = (sample.frequencies.map { formatGHz($0[index]) } ?? "–") + " of \(top) GHz"
+            legend.value.stringValue = (sample.frequencies.map { formatGHz($0[index]) } ?? "–") + " of \(top) GHz"
         }
     }
 
