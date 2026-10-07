@@ -228,6 +228,9 @@ if arguments.contains("--report") {
     exit(diskReport(folder: argument(after: "--report"), minimumBytes: minimumBytes))
 }
 
+// Tooltips appear after 0.75 s rather than AppKit's 1.5 s. Registered, not set, so a
+// delay the user chose themselves (NSInitialToolTipDelay, in ms) still wins.
+UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 750])
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

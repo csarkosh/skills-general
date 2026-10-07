@@ -98,7 +98,8 @@ volume holds, what a Temp row's part is. Every tooltip is at most two short line
 `MenuKit.swift` breaks one that is longer than 240 pt of the tooltip font at the space that best
 balances two lines (macOS wraps tooltips only wider than that). `MacStats --tooltips` lists every
 panel's tooltips with their lines and widths, and a test fails a key without one or a tooltip past
-two lines (folder paths in Disk excepted).
+two lines (folder paths in Disk excepted). Tooltips appear after 0.75 s, half AppKit's 1.5 s: MacStats
+registers `NSInitialToolTipDelay` 750 as its own default, so a delay the user set themselves wins.
 
 From a terminal, `MacStats --cpu` prints the CPU panel, `--gpu` the GPU panel, `--memory` the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
 temperatures' weighted value, `--spaces` the disk's five volumes, `--legend` the Disk panel's
@@ -131,10 +132,11 @@ System, User and Idle are Stats' figures from the CPU's tick counts, User withou
 Two gauges like Temp's: utilization on Stats' own zones (normal below 60%, busy below 80%, heavy
 from 80%) and the GPU's temperature on the chip's limits. **Usage**: a three-minute chart with
 utilization as a blue area and Renderer and Tiler as orange and pink lines (on Apple silicon the
-three move together), then those three rows in the same colours, ML engine, FPS and Memory
-(what the GPU is using now as a share of the most macOS lets it use, Metal's recommended
-working set, 11.84 GB of a 16 GB Mac, with a teal sparkline of the last three minutes on that
-scale, and under it the same as `0.49 / 11.84 GB`; the tooltip adds what it holds set aside). **Details**: model and cores. **Top GPU apps**: each
+three move together), then those three rows in the same colours, then ML engine, FPS and Memory, each with a small
+three-minute graph, lined up in one column: ML engine in purple, 0 to 100%; FPS in green, up to the
+fastest any display redraws (60, or 120 with ProMotion); Memory in teal, the GPU's memory in use as
+a share of the most macOS lets it use (Metal's recommended working set, 11.84 GB of a 16 GB Mac),
+with `0.49 / 11.84 GB` under it and what it holds set aside in its tooltip. **Top GPU apps**: each
 app's share of GPU time over the last two seconds, as Activity Monitor's "% GPU" counts it,
 from the GPU time macOS keeps per app in the registry. Utilization, memory, model and cores come
 from the accelerator's registry entry; ML engine (its power against its peak) and FPS (the

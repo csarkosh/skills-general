@@ -365,14 +365,17 @@ final class Sparkline: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    /// Puts the sparkline in `row`, just before its value.
-    func place(in row: PanelRow) {
+    /// Puts the sparkline in `row`, just before its value; with `valueColumn`, that far
+    /// from the row's right edge whatever the value's width, so a column of rows' graphs
+    /// line up.
+    func place(in row: PanelRow, valueColumn: CGFloat? = nil) {
         row.addSubview(self)
         NSLayoutConstraint.activate([
             widthAnchor.constraint(equalToConstant: 50),
             heightAnchor.constraint(equalToConstant: 12),
             centerYAnchor.constraint(equalTo: row.centerYAnchor),
-            trailingAnchor.constraint(equalTo: row.value.leadingAnchor, constant: -8),
+            valueColumn.map { trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -$0 - 8) }
+                ?? trailingAnchor.constraint(equalTo: row.value.leadingAnchor, constant: -8),
         ])
     }
 

@@ -1,6 +1,7 @@
 // The GPU menu bar item: "GPU" over its utilization, and a panel with two gauges
 // (utilization, and GPU temperature on the chip's limits), Usage (a history chart
-// and the GPU's figures), Details (model, cores) and Top GPU apps. The figures are
+// and the GPU's figures, ML engine, FPS and Memory each with a small graph) and Top GPU
+// apps. The figures are
 // the ones the Stats app reads (Modules/GPU/reader.swift, MIT; see LICENSE-stats.txt
 // beside this file): the accelerator's PerformanceStatistics, and on Apple silicon
 // the ML engine's power and the displays' frame swaps from IOReport.
@@ -204,6 +205,12 @@ let gpuSeries: [(title: String, color: NSColor, value: (GPUSample) -> Double)] =
 /// The Memory sparkline's colour. The row itself has no colour dot: the dots key the
 /// rows to the chart, and memory is not in it.
 let gpuMemoryColor = NSColor.systemTeal
+/// The ML engine and FPS sparklines' colours.
+let gpuEngineColor = NSColor.systemPurple
+let gpuFramesColor = NSColor.systemGreen
+
+/// The fastest any display redraws (60, or 120 with ProMotion): the FPS graph's top.
+var displayMaxFPS: Double { Double(NSScreen.screens.map(\.maximumFramesPerSecond).max() ?? 60) }
 
 /// The last three minutes, a sample a second.
 final class GPUHistory {
@@ -309,6 +316,10 @@ final class GPUPanel: StatsPanel {
     // GPU memory in use over the last three minutes, scaled to the most macOS lets the
     // GPU use, so the bar shows how close it is to its limit.
     private let memorySparkline = Sparkline(color: gpuMemoryColor)
+    // The ML engine's use over the last three minutes, 0 to 100%, and the frames the
+    // displays showed, up to the fastest they redraw.
+    private let engineSparkline = Sparkline(color: gpuEngineColor)
+    private let framesSparkline = Sparkline(color: gpuFramesColor)
     /// "0.49 / 11.84 GB" under the Memory row: in use and the limit, right-aligned.
     private let memoryDetail = NSTextField(labelWithString: "")
     private let appRows = (0..<8).map { _ in ProcessRow() }
@@ -347,9 +358,12 @@ final class GPUPanel: StatsPanel {
         seriesRows[1].toolTip = twoLines("Time spent colouring pixels, the last step in drawing each frame.")
         seriesRows[2].toolTip = twoLines("Time spent sorting each frame's shapes into screen tiles, before colouring them.")
         neuralRow.toolTip = twoLines("How busy the machine-learning cores are, from their power against their peak.")
-        fpsRow.toolTip = twoLines("Frames the displays showed in the last second.")
-        memorySparkline.capacity = history.capacity
-        memorySparkline.place(in: memoryRow)
+        fpsRow.toolTip = twoLines("Frames shown in the last second. The graph tops out at "
+            + "\(Int(displayMaxFPS)), the display's fastest.")
+        for (sparkline, row) in [(engineSparkline, neuralRow), (framesSparkline, fpsRow), (memorySparkline, memoryRow)] {
+            sparkline.capacity = history.capacity
+            sparkline.place(in: row, valueColumn: 34)  // room for "100%"
+        }
         memoryDetail.font = .systemFont(ofSize: 10)
         memoryDetail.textColor = .labelColor
         memoryDetail.alignment = .right
@@ -357,14 +371,6 @@ final class GPUPanel: StatsPanel {
         memoryDetail.widthAnchor.constraint(equalToConstant: Panel.width).isActive = true
         body.addArrangedSubview(memoryDetail)
         body.setCustomSpacing(2, after: memoryDetail)
-
-        body.addArrangedSubview(separatorView("Details"))
-        let model = PanelRow("Model:")
-        model.value.stringValue = info?.model ?? "Unknown"
-        let cores = PanelRow("Cores:")
-        cores.value.stringValue = info?.cores.map(String.init) ?? "Unknown"
-        body.addArrangedSubview(model)
-        body.addArrangedSubview(cores)
 
         body.addArrangedSubview(separatorView("Top GPU apps"))
         let heading = ProcessRow()
@@ -402,6 +408,9 @@ final class GPUPanel: StatsPanel {
         memoryRow.value.stringValue = formatPercent(sample.memoryInUse / gpuMemoryLimit)
         memoryDetail.stringValue = "\(formatGB(sample.memoryInUse)) / \(formatGB(gpuMemoryLimit)) GB"
         memorySparkline.fractions = history.samples.map { $0.memoryInUse / gpuMemoryLimit }
+        engineSparkline.fractions = history.samples.map { $0.neuralEngine ?? 0 }
+        let maxFPS = displayMaxFPS
+        framesSparkline.fractions = history.samples.map { ($0.fps ?? 0) / maxFPS }
         let tooltip = twoLines("GPU memory in use, of the \(formatMemory(gpuMemoryLimit)) macOS lets it use. "
             + "It holds \(formatMemory(sample.memoryAllocated)) set aside.")
         memoryRow.toolTip = tooltip
