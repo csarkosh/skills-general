@@ -128,7 +128,9 @@ IOReport says each cluster spent at each clock step over the last second (the st
 power manager's voltage tables), as Stats reads them.
 **Top processes**: `ps`'s %CPU, as Stats lists them (macOS averages it over the last minute or so),
 refreshed every two seconds while the panel is open; the header's icon opens Activity Monitor.
-System, User and Idle are Stats' figures from the CPU's tick counts, User without "nice" time.
+System, User and Idle are Stats' figures, User without "nice" time, from the cores' tick counts
+added up: macOS's whole-CPU counts are the same sum but update in bursts (at times not for 0.9 s),
+so two readings close together could match and give nothing.
 
 ## The GPU panel
 

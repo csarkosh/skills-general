@@ -128,30 +128,31 @@ func loadAverages() -> [Double] {
     return getloadavg(&loads, 3) == 3 ? loads : []
 }
 
-/// Reads the CPU once a second, as Stats does: System, User and Idle from the whole
-/// CPU's tick counts since the last reading (User without "nice" time, as Stats has
+/// Reads the CPU once a second, as Stats does: System, User and Idle from all the
+/// cores' tick counts since the last reading (User without "nice" time, as Stats has
 /// it), each core type's usage from its cores' ticks, and each core type's clock
 /// speed from the time its cluster spent at each clock step.
 final class CPUSampler {
-    private var lastTotals: host_cpu_load_info?
     private var lastCores: [[UInt32]] = []
     private let clockStates = ReportSubscription([("CPU Stats", "CPU Complex Performance States"),
                                                   ("CPU Stats", "CPU Core Performance States")])
     private var lastResidencies: [String: [Int64]] = [:]
 
     func sample() -> CPUSample? {
-        guard let totals = cpuTotals() else { return nil }
-        defer { lastTotals = totals }
         let cores = coreTicks()
+        guard !cores.isEmpty else { return nil }
         defer { lastCores = cores }
         let frequencies = clockSpeeds()
-        guard let last = lastTotals else { return nil }
+        guard lastCores.count == cores.count else { return nil }
 
-        let difference = { (now: UInt32, then: UInt32) in Double(now &- then) }
-        let user = difference(totals.cpu_ticks.0, last.cpu_ticks.0)
-        let system = difference(totals.cpu_ticks.1, last.cpu_ticks.1)
-        let idle = difference(totals.cpu_ticks.2, last.cpu_ticks.2)
-        let nice = difference(totals.cpu_ticks.3, last.cpu_ticks.3)
+        // System, User and Idle from the cores' ticks added up. macOS's whole-CPU counts
+        // (HOST_CPU_LOAD_INFO, which Stats reads) are the same sum, but it updates them in
+        // bursts, at times not for 0.9 s, so two readings close together could match and
+        // give nothing; each core's counts move with every reading.
+        let difference = { (state: Int) in
+            zip(cores, self.lastCores).reduce(0.0) { $0 + Double($1.0[state] &- $1.1[state]) }
+        }
+        let user = difference(0), system = difference(1), idle = difference(2), nice = difference(3)
         let ticks = user + system + idle + nice
         guard ticks > 0 else { return nil }
 
@@ -169,15 +170,6 @@ final class CPUSampler {
         }
         return CPUSample(system: system / ticks, user: user / ticks, idle: idle / ticks,
                          coreUsage: typeUsage, frequencies: frequencies, load: loadAverages().first)
-    }
-
-    private func cpuTotals() -> host_cpu_load_info? {
-        var info = host_cpu_load_info()
-        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.stride / MemoryLayout<integer_t>.stride)
-        let result = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count) }
-        }
-        return result == KERN_SUCCESS ? info : nil
     }
 
     /// Each core's user, system, idle and nice ticks so far, by core number.
