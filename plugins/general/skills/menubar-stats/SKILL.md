@@ -1,6 +1,6 @@
 ---
 name: menubar-stats
-description: Use when the user wants CPU, GPU, RAM, disk space or temperature shown in the macOS menu bar, is setting up a new Mac's menu bar, wants the disk's free space or readable, de-duplicated temperatures in the menu bar, uses the Stats app (exelban/stats), or wants menu bar items reordered, grouped or kept left-most (another app's icon splitting them, an icon that must stay put).
+description: Use when the user wants CPU, GPU, RAM, disk space or temperature shown in the macOS menu bar, is setting up a new Mac's menu bar, wants the disk's free space or readable, de-duplicated temperatures in the menu bar, wants MacStats installed, or wants menu bar items reordered, grouped or kept left-most (another app's icon splitting them, an icon that must stay put).
 ---
 
 # Menu bar stats on a Mac
@@ -11,28 +11,11 @@ This skill reproduces one layout, left-most in the menu bar and in this order:
 |---|---|---|---|---|
 | `CPU` over `12%` (usage) | `GPU` over `84%` (utilization) | `RAM` over `89%` (memory in use) | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk free` over `75 GB` (free space, whole GB, as Finder counts it) |
 
-All five come from **MacStats**, a small Swift app in `scripts/macstats/`, built on the Mac. It
-draws them like the Stats app's (github.com/exelban/stats) "mini" widgets, a small label over the
-value, and reads most figures the way Stats does, but Stats could not show them as wanted: its
-Disk widgets cannot put a label over custom text, its temperature list repeats every sensor ("CPU
-efficiency core 1" to "4", "GPU 1" to "8"), and its history charts show one total. Every item
-updates every second, all together for well under 1% of one core, and drops down a panel styled
-like Stats'. A panel opens at menu level, above every window whichever app is in front; opening
-one closes any other; a click anywhere outside it closes it (watching mouse clicks needs no
-permission). Right-click any item for Quit.
-
-Every item keeps one width whatever it shows (as wide as `100%`, a three-digit temperature, or
-`888 GB`, in digits of one width), so the items beside them never shift as values change. Disk
-shows only the free space, in whole GB, to stay narrow (about 50 pt, from about 90 for
-`170.0/245.1 GB`); its tooltip gives the exact free and total, and its panel the rest.
-
-Each feature is one file, so a later App Store edition can leave one out (the sandbox forbids the
-SMC reads and the disk-wide folder walk): `MenuKit.swift` (the item and the panel's look, shared),
-`HoverTip.swift` (the panels' tooltips), `CPU.swift`, `GPU.swift` (both with `IOReport.swift`, the private counters they read), `RAM.swift`, `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
-`Battery.swift` (the battery's charge, for Temp's Power section), `AppIcon.swift` (the app's icon,
-the CS logo of csarko.sh, drawn in code), and `main.swift` (starts them all, and the command
-line). `SMC.swift` and `SensorCatalog.swift` are adapted
-from Stats (MIT); its licence is `scripts/macstats/LICENSE-stats.txt`.
+All five come from **MacStats** ([github.com/csarkosh/app-macstats](https://github.com/csarkosh/app-macstats)),
+a small Swift app that draws them like the Stats app's "mini" widgets, keeps each at one width so
+the items beside them never shift, updates every second, and drops a panel down from each. Its
+README says what every panel shows; this skill is about getting it installed and the five items
+in their places, with other apps' icons out of the group.
 
 Use `scripts/setup.sh` in this skill's directory rather than writing your own: it holds the
 setting names, the order and the traps below. Change the layout by editing the script.
@@ -40,27 +23,30 @@ setting names, the order and the traps below. Change the layout by editing the s
 ## Run it
 
 ```bash
-bash <this skill's directory>/scripts/setup.sh              # install, or repair; safe to rerun
+bash <this skill's directory>/scripts/setup.sh                  # install, or repair; safe to rerun
 bash <this skill's directory>/scripts/setup.sh --tight-spacing  # the same, and narrow the gap around every menu bar icon
-bash <this skill's directory>/scripts/setup.sh --uninstall  # remove MacStats and its login agents
+bash <this skill's directory>/scripts/setup.sh --uninstall      # remove MacStats and its login agent
 ```
 
-It needs one system package, the **Xcode Command Line Tools** (`swiftc` builds MacStats). When
-they are missing the script stops and prints `xcode-select --install`, which the user must run
-themselves at a real terminal and then click Install. A "Background Items Added" notice for the
-login agent is information only. Install nothing the user did not ask for.
+It needs one system package, the **Xcode Command Line Tools** (`swiftc` builds MacStats on the
+Mac; no Homebrew, Xcode or Developer ID). When they are missing the script stops and prints
+`xcode-select --install`, which the user must run themselves at a real terminal and then click
+Install. A "Background Items Added" notice for the login agent is information only. Install
+nothing the user did not ask for.
 
-The script stops and restarts MacStats, gives it its icon (`MacStats --write-icon` draws the
-sizes, `iconutil` packs them; it signs the app again whenever its program, icon or `Info.plist`
-changed), writes the items' places, adds the login agent
-`sh.csarko.macstats` (`~/Library/LaunchAgents`), and then prints the menu bar's order. It retires
-what earlier versions set up: DiskMenu (MacStats' older Disk-only form), and the
-`sh.csarko.stats-at-login` agent that kept the Stats app running for the CPU item; then it stops
-Stats and turns its CPU item off, but leaves the app installed (it says how to remove it). A Stats
-the script never set up is left alone. It rebuilds MacStats only when its source changed. It never
-quits other apps. Zoom takes its new place only when it restarts, so ask the user whether a call
-is on, then have them quit and reopen Zoom, or run `osascript -e 'quit app "zoom.us"'` and then
-`open -a zoom.us` (macOS may ask to let the terminal control zoom.us).
+The script writes the items' places, then installs MacStats with MacStats' own installer
+(`curl -fsSL https://raw.githubusercontent.com/csarkosh/app-macstats/main/install.sh | sh`),
+which builds the latest release, puts it in `~/Applications/MacStats.app`, adds the login agent
+`sh.csarko.macstats` (`~/Library/LaunchAgents`) and starts it; on a later run the installer
+rebuilds only for a new release. Then it prints the menu bar's order. `MACSTATS_INSTALL_ARGS`
+passes options to the installer (`--ref main` for the tip of MacStats' main branch, `--force` to
+rebuild). It retires what earlier versions of this skill set up: DiskMenu (MacStats' older
+Disk-only form), and the `sh.csarko.stats-at-login` agent that kept the Stats app running for the
+CPU item (it stops Stats and turns its CPU item off, but leaves the app installed and says how to
+remove it; a Stats the script never set up is left alone). It never quits other apps. Zoom takes
+its new place only when it restarts, so ask the user whether a call is on, then have them quit
+and reopen Zoom, or run `osascript -e 'quit app "zoom.us"'` and then `open -a zoom.us` (macOS may
+ask to let the terminal control zoom.us).
 
 ## How the order works
 
@@ -87,166 +73,14 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
   name. On macOS 26 every owner is "Control Center" and the names are the ones in the table
   above. The group is unbroken when each x is the previous x plus its width. Without Screen
   Recording permission the names may be blank; tell the items apart by width (CPU, GPU and RAM
-  about 50, Temp about 52, Disk about 60, Zoom about 32; 10 less each with tighter spacing). It prints nothing while an app is in
-  full screen.
-- `MacStats --render cpu|gpu|ram|temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
-  draws that item to a PNG; open the image to look at it.
-
-Every legend key (a row with a coloured square, or a chart's legend line) has a tooltip that says
-what it is, for someone hovering to find out: what System or Wired memory is, what the recovery
-volume holds, what a Temp row's part is. The panels draw their own tooltips (`HoverTip.swift`), not
-AppKit's: one shows after 0.75 s, half AppKit's 1.5 s (`NSInitialToolTipDelay`, which a user's own
-setting overrides), and stays for as long as the pointer stays on its view, clicks included;
-moving straight on to another swaps it at once, and text that follows the readings updates in
-place. AppKit's hide on any click, blink when set again, and missed views nested in stack views.
-(The menu bar items keep AppKit's.) Every tooltip is at most two short lines: `twoLines` in
-`MenuKit.swift` breaks one longer than 240 pt of the tooltip font at the space that best balances
-two lines. `MacStats --tooltips` lists every panel's tooltips with their lines and widths, and a
-test fails a key without one or a tooltip past two lines (folder paths in Disk excepted).
-
-From a terminal, `MacStats --cpu` prints the CPU panel, `--gpu` the GPU panel, `--memory` the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
-temperatures' weighted value, `--spaces` the disk's five volumes, `--legend` the Disk panel's
-Spaces rows in order, `--report` its folders (add a folder to list only it, and `--min-mb N` to
-change the cut-off), and `--show-panel temp|disk[,…]` starts it and opens those panels in turn, as clicks would.
-
-## The CPU panel
-
-Two gauges like Temp's: usage (System plus User) on Stats' own zones (normal below 60%, busy below
-80%, heavy from 80%), and the CPU's temperature on the chip's limits. **Usage**: a three-minute
-chart with System (red) and User (blue) stacked from the bottom and Idle the space above, then
-those rows and Idle (grey) in the same colours. The core types (efficiency, performance, and from
-M5 on super cores) come from the cores' cluster letters in the registry.
-**Load & frequency**: two small three-minute charts side by side, "Core load" and "Core
-frequency", each with its legend in small type under it: a coloured dot, a name and the value now.
-Core load is the 1-minute load average as a share of the cores, a pink area (`Load 31% of
-cores`): a load average counts the tasks running on a core or waiting for one and has no unit of
-its own, so it reads against the cores there are. A dashed line marks 100%, every core wanted;
-above it tasks were queuing. Core frequency draws each core type's clock speed as a line in Stats'
-colours (efficiency teal, performance indigo) against that type's own top speed, so a line near
-the top means those cores ran flat out (`P-cores 3.68 of 4.46 GHz`). Speeds come from the time
-IOReport says each cluster spent at each clock step over the last second (the steps from the
-power manager's voltage tables), as Stats reads them.
-**Top processes**: `ps`'s %CPU, as Stats lists them (macOS averages it over the last minute or so),
-refreshed every two seconds while the panel is open; the header's icon opens Activity Monitor.
-System, User and Idle are Stats' figures, User without "nice" time, from the cores' tick counts
-added up: macOS's whole-CPU counts are the same sum but update in bursts (at times not for 0.9 s),
-so two readings close together could match and give nothing.
-
-## The GPU panel
-
-Two gauges like Temp's: utilization on Stats' own zones (normal below 60%, busy below 80%, heavy
-from 80%) and the GPU's temperature on the chip's limits. **Usage**: a three-minute chart with
-utilization as a blue area and Renderer and Tiler as orange and pink lines (on Apple silicon the
-three move together), then those three rows in the same colours. 8 pt below them, a second group, each row with a
-small three-minute graph, lined up in one column: Framerate in green (`62 Hz`), up to the fastest
-any display redraws (60, or 120 with ProMotion); ML engine in purple, 0 to 100%; and last Memory in
-teal, the GPU's memory in use as a share of the most macOS lets it use (Metal's recommended working
-set, 11.84 GB of a 16 GB Mac), with `0.49 / 11.84 GB` under it and what it holds set aside in its
-tooltip. **Top GPU apps**: each
-app's share of GPU time over the last two seconds, as Activity Monitor's "% GPU" counts it,
-from the GPU time macOS keeps per app in the registry. Utilization, memory, model and cores come
-from the accelerator's registry entry; ML engine (its power against its peak) and Framerate (the
-displays' frame swaps) come from IOReport, a private macOS library looked up at run time, as
-Stats reads them.
-
-## The RAM panel
-
-Stats' RAM panel without its gauges, in two sections. **Usage** opens with Stats' usage history
-chart (the last three minutes, a sample a second), but with a band per part instead of one for
-used: App (blue), Wired (orange) and Compressed (pink) stacked from the bottom and Free (grey) on
-top, in the same colours as the rows; "Free: 2.1 GB (13%)", Free's size and share now, sits at
-the top right against the top edge, and "3 min ago … now" runs underneath. Then
-Used with its bar, a row per part and Swap (purple). Swap is disk space used as overflow,
-outside the physical memory the bands and the bar divide up, so it stays out of the chart (a
-line across the bands read as if the bands under it were swap, and a band on top squeezed
-them). Its row is always last and reads `6.21 GB` with a small purple graph of the last three
-minutes measured against the Mac's memory: swap has no fixed maximum (macOS adds 1 GB
-swap files as it needs them while the disk has room), so the useful ratio is how far memory
-demand has spilled past the memory there is. The
-figures are Stats': used is active, inactive, speculative, wired and compressed pages less
-purgeable and file-backed ones, App is used less Wired and Compressed, Free is the rest, all in
-the binary units macOS uses for memory. **Top processes** lists the eight processes using the
-most memory, from `top -l 1 -o mem` as Stats reads them, refreshed every two seconds while the
-panel is open; the header's icon opens Activity Monitor.
-
-## The Temp panel
-
-Two gauges on top, drawn like Stats' RAM pressure gauge (three equal green, yellow and red arcs
-and a blue needle, which here moves along its band), headed "Hottest part" and "Power use": the
-hottest part on that part's own limits
-("Hot · 185°F" over its name), and power use ("Normal · 9 W" over the battery time left at that
-rate, or "on charger"). Power use is Total in watts, in tiers from the Mac's own figures in
-`Temp.swift`: the M4 MacBook Air idles at 0.7–3.6 W (Apple's ENERGY STAR filing), sustains 8–9 W
-on its chip and bursts to 20–23 W, and peaks near 31 W, its 30 W charger's size (Notebookcheck,
-LaptopMedia), so normal is below 10 W, moderate below 20 W and high from 20 W. Other chip classes
-get scaled estimates. `MacStats --power-level <W>` prints a tier.
-
-Then three sections, each only when the Mac has such sensors: Temperature, Power and Fans. The sensors
-are the SMC keys in `SensorCatalog.swift` that this chip answers (generated from Stats' list, so new
-chips arrive with a Stats update).
-
-**Temperature is one row per part of the Mac**, hottest first: numbered sensors share a row
-("CPU performance core 1" to "8" are "CPU performance cores", "GPU 1" to "8" are "GPU",
-"Airport" is "Wi-Fi"). A row's value leans toward its hottest sensor: each reading is weighted
-by e^((t − hottest) / 3 °C), so the hottest counts fully, one 3 °C cooler about 37% and one
-6 °C cooler about 14%. The tooltip says what the part is and where its square turns yellow and red.
-Squares turn yellow and red at limits set per part in `Temp.swift`, because parts differ: chip
-parts (CPU, GPU, machine-learning engine, memory) yellow from 85 °C and red from 100 °C (they run at
-60–85 °C under load and throttle from about 90–100 °C); the battery from 35 °C and 40 °C (Apple's
-range is 10–35 °C, and heat above 40 °C wears it); the SSD from 50 °C and 70 °C (flash is rated
-to about 70 °C); anything else from 60 °C and 80 °C. `MacStats --heat "<row>" <°C>` prints a
-row's colour, and a test pins every limit. The menu bar shows the top row's temperature, in °F
-where the Mac's region uses US units and °C elsewhere, tinted soft red while that row is red.
-
-**Power is Stats' Voltage, Current and Power sections in plain words**, each row with a tooltip
-saying what it is: Total (`PSTR`, everything the Mac uses), Battery (`PPBR`, power out of the
-battery), Charger (`PDTR` in watts, with `VD0R` volts and `ID0R` amps in its tooltip; shown only
-while a charger is connected) and Internal supply (`VP0R`, the main supply line, near 12 V). Any
-other power, voltage or current sensor follows under Stats' name for it. Battery left comes last
-(`26.2/53.5 Wh (49%)`: what remains of what a full charge holds now, from the `AppleSmartBattery`
-registry entry in `Battery.swift`). Its mAh become Wh at the cells' rated 3.87 V, not the live
-voltage, which would swing with charging; that matches Apple's ratings (4,629 mAh is the M4
-MacBook Air's 53.8 Wh). The percentage is the battery icon's, and the tooltip adds the capacity
-when new and the charge cycles. Fans lists each fan in RPM.
-
-Reading the SMC needs no permission and causes no privacy prompt.
-
-## The Disk panel
-
-Its Spaces section is laid out like Stats' RAM details: Used, a line bar split by colour, then a
-coloured row for each part of the bar, biggest first with Free always last (the bar follows the
-same order): macOS system (orange), update/boot (yellow), recovery (purple), swap (pink), my
-apps / files (blue), other (brown: APFS bookkeeping and any extra volume), Purgeable (teal) and
-Free (grey). The rows and the bar come from one list in `Disk.swift`, `spaceLegend`, so every
-row has a colour and the rows add up to Used.
-
-The volumes are the startup disk's APFS volumes by role, from `diskutil apfs list`: System,
-Preboot plus Update, Recovery, VM and Data; Used and Free are the container's. Purgeable is space
-macOS frees on its own: the panel's volumes count it as used, the menu bar (like Finder) as free.
-Below, my apps / files is broken down into folders three levels deep (100 MB and over, biggest
-first; an app is one row), measured on the Data volume (`/System/Volumes/Data`) by allocated
-blocks like `du -x`. That takes about a minute, so the panel reuses a measurement for 10 minutes,
-and while it measures again it keeps showing the last one: "Last measured at …" stays at the left
-of the line above the folders, and "*Remeasuring…*" shows in italics at its right. The
-last measurement is saved to `~/Library/Caches/sh.csarko.MacStats/folders.json`, so after a
-restart the panel opens with it instead of an empty list.
-The header's arrow measures again, its drive icon opens Storage settings, and double-clicking a
-folder shows it in Finder.
-
-**Privacy.** MacStats never opens the folders macOS guards with a permission prompt or that hold
-private data: Desktop, Documents, Downloads, Music, Movies, iCloud Drive and cloud-storage folders,
-other apps' data (`Library/Containers`, `Library/Group Containers`), Mail, Messages, Safari,
-Contacts, Calendars, and the Photos, Music and TV libraries. No app can learn a folder's size
-without reading inside it, so these show as **private** with no size, and a folder holding one
-shows **≥** (at least). macOS refuses a few system folders and the Trash silently, without a prompt;
-those show **no access**. Finder's Get Info shows a private folder's size.
-
-To check that a change prompts for nothing, run the installed app as itself (`open -n -W -a
-~/Applications/MacStats.app --args --report`) and read which privacy services it asked for:
-`/usr/bin/log show --last 5m --info --predicate 'process == "tccd" AND eventMessage CONTAINS
-"Sub:{sh.csarko.MacStats}"'` (in zsh, `log` alone is a builtin). Only
-`kTCCServiceSystemPolicyAllFiles`, which never prompts, may appear while it measures. Listing inside
-`~/Music` or `~/Movies` alone triggers the media library prompt, so those stay private whole.
+  about 50, Temp about 52, Disk about 60, Zoom about 32; 10 less each with tighter spacing). It
+  prints nothing while an app is in full screen.
+- `MacStats --render cpu|gpu|ram|temp|disk out.png` (the binary is
+  `~/Applications/MacStats.app/Contents/MacOS/MacStats`) draws that item to a PNG; open the image
+  to look at it. `MacStats --version` says which release is installed; `--cpu`, `--gpu`,
+  `--memory`, `--sensors`, `--spaces`, `--legend`, `--report` and `--tooltips` print what the
+  panels show, and `--show-panel temp,disk` opens panels as clicks would (MacStats' README lists
+  them all).
 
 ## Common mistakes
 

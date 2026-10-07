@@ -1,21 +1,25 @@
 #!/bin/bash
 # Sets up the menu bar stats group on a Mac, left-most in this order: CPU, GPU, RAM,
-# Temp and Disk, all drawn by MacStats, built here from macstats/. Safe to run again:
-# it rewrites the same settings. It also retires what earlier versions set up: DiskMenu
-# (MacStats' older Disk-only form) and the login agent that started the Stats app.
+# Temp and Disk, all drawn by MacStats (github.com/csarkosh/app-macstats), which this
+# script installs with MacStats' own installer. Safe to run again: it rewrites the same
+# settings, and the installer rebuilds only for a new release. It also retires what
+# earlier versions set up: DiskMenu (MacStats' older Disk-only form) and the login
+# agent that started the Stats app for the CPU item.
 #
-#   bash setup.sh              # install or repair
+#   bash setup.sh                  # install or repair
 #   bash setup.sh --tight-spacing  # also narrow the gap around every menu bar icon
-#   bash setup.sh --uninstall  # remove MacStats and its login agent
+#   bash setup.sh --uninstall      # remove MacStats and its login agent
 #
-# Stops with the command to run when the Xcode Command Line Tools are missing; they
-# need the user at a real terminal (a dialog).
+# MACSTATS_INSTALL_ARGS passes options to the installer: "--ref main" for the tip of
+# MacStats' main branch, "--version v1.2.0" for a particular release, "--force" to
+# rebuild. Stops with the command to run when the Xcode Command Line Tools are
+# missing; they need the user at a real terminal (a dialog).
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+INSTALLER="https://raw.githubusercontent.com/csarkosh/app-macstats/main/install.sh"
 APP="$HOME/Applications/MacStats.app"
 AGENTS="$HOME/Library/LaunchAgents"
-MACSTATS_AGENT="$AGENTS/sh.csarko.macstats.plist"
 STATS_AGENT="$AGENTS/sh.csarko.stats-at-login.plist"
 OLD_APP="$HOME/Applications/DiskMenu.app"
 OLD_AGENT="$AGENTS/sh.csarko.diskmenu.plist"
@@ -31,45 +35,31 @@ stop_app() { # stop_app <process name>
   pkill -9 -x "$1" || true
 }
 
-# A login agent that starts an app only when it is not running.
-login_agent() { # login_agent <plist path> <label> <shell command>
-  cat > "$1" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>$2</string>
-  <key>ProgramArguments</key>
-  <array><string>/bin/sh</string><string>-c</string><string>$3</string></array>
-  <key>RunAtLoad</key><true/>
-</dict>
-</plist>
-EOF
-  plutil -lint -s "$1"
-  launchctl bootout "gui/$(id -u)" "$1" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$1"
-}
-
-[ "$(uname -s)" = Darwin ] || fail "this sets up the macOS menu bar; it runs only on macOS."
-
 remove_agent() { # remove_agent <plist path>
   launchctl bootout "gui/$(id -u)" "$1" 2>/dev/null || true
   rm -f "$1"
 }
 
+# MacStats' installer, from its repository, with any options the user passed.
+install_macstats() { # install_macstats [installer options]
+  curl -fsSL "$INSTALLER" | sh -s -- "$@"
+}
+
+[ "$(uname -s)" = Darwin ] || fail "this sets up the macOS menu bar; it runs only on macOS."
+
 TIGHT=0
 [ "${1:-}" = --tight-spacing ] && TIGHT=1
 
 if [ "${1:-}" = --uninstall ]; then
-  for agent in "$MACSTATS_AGENT" "$OLD_AGENT" "$STATS_AGENT"; do remove_agent "$agent"; done
-  stop_app MacStats
+  for agent in "$OLD_AGENT" "$STATS_AGENT"; do remove_agent "$agent"; done
   stop_app DiskMenu
-  rm -rf "$APP" "$OLD_APP"
-  say "Removed MacStats and its login agent."
+  rm -rf "$OLD_APP"
+  install_macstats --uninstall
   exit 0
 fi
 
-# 1. System packages: only the Command Line Tools, for swiftc.
+# 1. The one system package: the Command Line Tools, for swiftc. The installer checks
+# too; checking here first keeps its message from arriving halfway through.
 if ! xcode-select -p >/dev/null 2>&1 || ! xcrun --find swiftc >/dev/null 2>&1; then
   fail "the Xcode Command Line Tools (swiftc, to build MacStats) are not installed. Run:
   xcode-select --install
@@ -102,7 +92,8 @@ if [ "$TIGHT" = 1 ]; then
 fi
 
 # 3. The order. macOS keeps each item's place as "NSStatusItem Preferred Position
-# <name>" in the owning app's settings; a larger number sits further left.
+# <name>" in the owning app's settings; a larger number sits further left. MacStats
+# reads these when it starts, so they go in before the installer starts it.
 defaults write sh.csarko.MacStats "$POS MacStatsCPU" -float 1300
 defaults write sh.csarko.MacStats "$POS MacStatsGPU" -float 1250
 defaults write sh.csarko.MacStats "$POS MacStatsRAM" -float 1200
@@ -116,7 +107,9 @@ if [ -d /Applications/zoom.us.app ] || [ -d "$HOME/Applications/zoom.us.app" ]; 
   pgrep -xq zoom.us && ZOOM_NOTE="Zoom is running: if its icon (Item-0) is listed before MacStatsDisk, quit and reopen Zoom to move it out of the group."
 fi
 
-# 4. MacStats: retire DiskMenu if this Mac has it, then build into ~/Applications.
+# 4. Retire DiskMenu if this Mac has it, then install MacStats (or update it to the
+# latest release) with its own installer, which builds it, puts it in ~/Applications
+# and adds the login agent sh.csarko.macstats.
 if [ -e "$OLD_APP" ] || [ -e "$OLD_AGENT" ]; then
   say "Replacing DiskMenu with MacStats..."
   remove_agent "$OLD_AGENT"
@@ -124,62 +117,15 @@ if [ -e "$OLD_APP" ] || [ -e "$OLD_AGENT" ]; then
   rm -rf "$OLD_APP"
   defaults delete sh.csarko.DiskMenu >/dev/null 2>&1 || true
 fi
-say "Building MacStats if its source changed..."
-stop_app MacStats
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-# Anything changed in the app (its settings file, its program or its icon) means signing
-# it again: the signature covers them all.
-CHANGED=0
-PLIST_NEW="$(mktemp)"
-cat > "$PLIST_NEW" <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleIdentifier</key><string>sh.csarko.MacStats</string>
-  <key>CFBundleName</key><string>MacStats</string>
-  <key>CFBundleExecutable</key><string>MacStats</string>
-  <key>CFBundleIconFile</key><string>AppIcon</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
-  <key>LSUIElement</key><true/>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
-</dict>
-</plist>
-EOF
-if cmp -s "$PLIST_NEW" "$APP/Contents/Info.plist"; then rm -f "$PLIST_NEW"; else mv "$PLIST_NEW" "$APP/Contents/Info.plist"; CHANGED=1; fi
-# Rebuild only when the source changed: a rebuild gives the app a new signature, which
-# resets any permission macOS has granted it.
-SOURCE_HASH="$(cat "$DIR"/macstats/*.swift | shasum -a 256 | cut -d' ' -f1)"
-BUILT_HASH="$APP/Contents/Resources/source.sha256"
-if [ -x "$APP/Contents/MacOS/MacStats" ] && [ "$(cat "$BUILT_HASH" 2>/dev/null)" = "$SOURCE_HASH" ]; then
-  say "MacStats is up to date."
-else
-  xcrun swiftc -O "$DIR"/macstats/*.swift -o "$APP/Contents/MacOS/MacStats"
-  printf '%s\n' "$SOURCE_HASH" > "$BUILT_HASH"
-  CHANGED=1
-fi
-# The icon, the CS logo, is drawn by MacStats itself (AppIcon.swift), so it is redrawn
-# with each build.
-ICON="$APP/Contents/Resources/AppIcon.icns"
-if [ "$CHANGED" = 1 ] || [ ! -f "$ICON" ]; then
-  ICONSET="$(mktemp -d)/AppIcon.iconset"
-  "$APP/Contents/MacOS/MacStats" --write-icon "$ICONSET"
-  iconutil -c icns -o "$ICON" "$ICONSET"
-  rm -rf "$(dirname "$ICONSET")"
-  CHANGED=1
-fi
-if [ "$CHANGED" = 1 ]; then
-  codesign --force --sign - "$APP" 2>/dev/null
-  # Finder and the menu bar settings show the new icon once Launch Services rereads the app.
-  touch "$APP"
-  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" || true
+# shellcheck disable=SC2086
+install_macstats ${MACSTATS_INSTALL_ARGS:-}
+# A running MacStats takes new places only when it starts again.
+if pgrep -xq MacStats; then
+  stop_app MacStats
+  open -a "$APP"
 fi
 
-# 5. Start MacStats now and at every login.
-mkdir -p "$AGENTS"
-login_agent "$MACSTATS_AGENT" sh.csarko.macstats "pgrep -xq MacStats || open -a '$APP'"
-
+# 5. What the menu bar shows now.
 say "Waiting for the menu bar to settle..."
 sleep 8
 say "Menu bar, left to right (x, width, owner, item):"
