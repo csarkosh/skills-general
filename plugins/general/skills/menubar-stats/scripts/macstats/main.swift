@@ -12,7 +12,7 @@
 //   MacStats --render cpu|gpu|ram|temp|disk out.png  # draws that menu bar item to a PNG and exits
 //                                           # (with --alert, Temp as it looks when hot)
 //   MacStats --write-icon <dir>.iconset     # draws the app icon at iconutil's sizes and exits
-//   MacStats --legend-tips                  # prints every panel's legend keys and their tooltips
+//   MacStats --tooltips                     # prints every panel's tooltips, legend keys first
 //   MacStats --cpu                          # prints the CPU panel and exits
 //   MacStats --gpu                          # prints the GPU panel and exits
 //   MacStats --memory                       # prints the RAM panel and exits
@@ -140,34 +140,43 @@ if arguments.contains("--render") {
     default: fail("usage: MacStats --render cpu|gpu|ram|temp|disk <out.png>")
     }
 }
-/// Every panel's legend keys (rows with a coloured square, and chart legend lines) with
-/// their tooltips, as "<panel>\t<key>\t<tooltip>", so a test can see none lacks one.
-func legendTipsReport() -> Int32 {
+/// Every tooltip in every panel, as "<panel>\t<key or other>\t<name>\t<lines>\t<widest line>\t<text>":
+/// legend keys (rows with a coloured square, and chart legend lines) and every other view
+/// with one, so a test can see every key has one and none runs past two lines.
+func tooltipsReport() -> Int32 {
     _ = NSApplication.shared
     let reader = SensorReader()
     let temp = TempPanel(reader: reader)
     temp.update(reader.read())
+    let gpu = GPUPanel(history: GPUHistory(), reader: reader)
+    if let sample = GPUSampler().sample() { gpu.update(sample) }
     let panels: [(String, StatsPanel)] = [
-        ("CPU", CPUPanel(history: CPUHistory(), reader: reader)), ("GPU", GPUPanel(history: GPUHistory(), reader: reader)),
+        ("CPU", CPUPanel(history: CPUHistory(), reader: reader)), ("GPU", gpu),
         ("RAM", RAMPanel(history: MemoryHistory())), ("Temp", temp), ("Disk", DiskPanel()),
     ]
-    func keys(in view: NSView) -> [(String, String)] {
+    func tips(in view: NSView) -> [(kind: String, name: String, tip: String)] {
         if let row = view as? PanelRow, row.isKey {
-            return [(row.label.stringValue.trimmingCharacters(in: CharacterSet(charactersIn: ":")), row.toolTip ?? "")]
+            return [("key", row.label.stringValue.trimmingCharacters(in: CharacterSet(charactersIn: ":")), row.toolTip ?? "")]
         }
-        if let line = view as? LegendLine { return [(line.title, line.toolTip ?? "")] }
-        return view.subviews.flatMap(keys)
+        if let line = view as? LegendLine { return [("key", line.title, line.toolTip ?? "")] }
+        let own: [(kind: String, name: String, tip: String)] = view.toolTip.map { tip in
+            [("other", (view as? PanelRow)?.label.stringValue ?? String(describing: type(of: view)), tip)]
+        } ?? []
+        return own + view.subviews.flatMap(tips)
     }
     for (name, panel) in panels {
-        for (key, tip) in keys(in: panel.contentView!) {
-            print(name + "\t" + key + "\t" + tip.replacingOccurrences(of: "\n", with: " "))
+        for tip in tips(in: panel.contentView!) {
+            let lines = tip.tip.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            let widest = Int((lines.map(tooltipWidth).max() ?? 0).rounded(.up))
+            print([name, tip.kind, tip.name, String(lines.count), String(widest),
+                   tip.tip.replacingOccurrences(of: "\n", with: " / ")].joined(separator: "\t"))
         }
     }
     return 0
 }
 
-if arguments.contains("--legend-tips") {
-    exit(legendTipsReport())
+if arguments.contains("--tooltips") {
+    exit(tooltipsReport())
 }
 if let directory = argument(after: "--write-icon") {
     exit(writeIconSet(to: directory))

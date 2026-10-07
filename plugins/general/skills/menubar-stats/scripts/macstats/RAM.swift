@@ -271,20 +271,14 @@ final class RAMPanel: StatsPanel {
         for row in partRows { body.addArrangedSubview(row) }
         // Swap is always last: it is not part of the memory above.
         let tips = [
-            "App": "Memory apps are using for their own data: open documents, web pages, images, undo history. "
-                + "When memory runs short, macOS compresses some of it or moves it to swap.",
-            "Wired": "Memory macOS itself needs and can never compress or move to disk: the kernel, drivers, and "
-                + "buffers the GPU and other hardware read directly. It grows with displays and graphics work.",
-            "Compressed": "App memory macOS has packed down to make room, instead of writing it to disk. Reading it "
-                + "back costs a little CPU but is far faster than swap.",
-            "Free": "Memory apps and macOS are not holding: unused memory plus file caches macOS can drop the moment "
-                + "something needs the space. Little free memory is normal; macOS keeps memory working as cache.",
+            "App": "Memory apps use for their own data: documents, web pages, images.",
+            "Wired": "Memory macOS keeps for itself and never moves: kernel, drivers, GPU buffers.",
+            "Compressed": "App memory packed down to make room, rather than moved to disk.",
+            "Free": "Unused memory, plus caches macOS drops when needed. Little free is normal.",
         ]
-        for (row, part) in zip(partRows, memoryParts) { row.toolTip = tips[part.title] }
+        for (row, part) in zip(partRows, memoryParts) { row.toolTip = tips[part.title].map(twoLines) }
         body.addArrangedSubview(swapRow)
-        swapRow.toolTip = "Disk space macOS uses as overflow when memory runs short. It has no fixed maximum: "
-            + "macOS adds 1 GB swap files as it needs them while the disk has room. The small graph compares it "
-            + "with the Mac's memory: how far memory demand has spilled past it."
+        swapRow.toolTip = twoLines("Disk used as overflow when memory runs short. Its graph is scaled to your RAM.")
         swapSparkline.capacity = history.capacity
         swapSparkline.place(in: swapRow)
 

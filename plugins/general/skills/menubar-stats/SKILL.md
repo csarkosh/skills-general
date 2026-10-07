@@ -94,8 +94,11 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 
 Every legend key (a row with a coloured square, or a chart's legend line) has a tooltip that says
 what it is, for someone hovering to find out: what System or Wired memory is, what the recovery
-volume holds, what a Temp row's part does. `MacStats --legend-tips` lists them all, and a test fails
-a key without one.
+volume holds, what a Temp row's part is. Every tooltip is at most two short lines: `twoLines` in
+`MenuKit.swift` breaks one that is longer than 240 pt of the tooltip font at the space that best
+balances two lines (macOS wraps tooltips only wider than that). `MacStats --tooltips` lists every
+panel's tooltips with their lines and widths, and a test fails a key without one or a tooltip past
+two lines (folder paths in Disk excepted).
 
 From a terminal, `MacStats --cpu` prints the CPU panel, `--gpu` the GPU panel, `--memory` the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
 temperatures' weighted value, `--spaces` the disk's five volumes, `--legend` the Disk panel's
@@ -178,7 +181,7 @@ chips arrive with a Stats update).
 ("CPU performance core 1" to "8" are "CPU performance cores", "GPU 1" to "8" are "GPU",
 "Airport" is "Wi-Fi"). A row's value leans toward its hottest sensor: each reading is weighted
 by e^((t − hottest) / 3 °C), so the hottest counts fully, one 3 °C cooler about 37% and one
-6 °C cooler about 14%. The tooltip gives the sensor count and range and the row's limits.
+6 °C cooler about 14%. The tooltip says what the part is and where its square turns yellow and red.
 Squares turn yellow and red at limits set per part in `Temp.swift`, because parts differ: chip
 parts (CPU, GPU, machine-learning engine, memory) yellow from 85 °C and red from 100 °C (they run at
 60–85 °C under load and throttle from about 90–100 °C); the battery from 35 °C and 40 °C (Apple's

@@ -334,8 +334,8 @@ final class GPUPanel: StatsPanel {
         ])
         utilizationGauge.heading = "Utilization"
         heatGauge.heading = "Temperature"
-        utilizationGauge.toolTip = "How busy the GPU is: normal below 60%, busy below 80%, heavy from 80%, Stats' zones."
-        heatGauge.toolTip = "The GPU's temperature on the chip's limits, as its row in the Temp menu has it."
+        utilizationGauge.toolTip = twoLines("How busy the GPU is: normal under 60%, busy under 80%, heavy above.")
+        heatGauge.toolTip = twoLines("The GPU's temperature, coloured on the chip's limits as in the Temp menu.")
         body.addArrangedSubview(dashboard)
 
         body.addArrangedSubview(separatorView("Usage"))
@@ -343,14 +343,11 @@ final class GPUPanel: StatsPanel {
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
         for row in seriesRows + [neuralRow, fpsRow, memoryRow] { body.addArrangedSubview(row) }
-        seriesRows[0].toolTip = "The share of time the GPU was busy with any work: drawing the screen and windows, "
-            + "games, video, and apps that compute on it. Renderer and Tiler are two of its stages."
-        seriesRows[1].toolTip = "The share of time the GPU spent rendering: colouring each pixel (shading, textures, "
-            + "blending), the last step in drawing a frame. Most of a frame's work is here."
-        seriesRows[2].toolTip = "The share of time the GPU spent tiling: sorting each frame's shapes into the small "
-            + "squares of screen that Apple's GPUs draw one at a time, the step before rendering."
-        neuralRow.toolTip = "How busy the ML engine, Apple's machine-learning cores, is: its power against its peak, as Stats reads it."
-        fpsRow.toolTip = "Frames the displays showed in the last second."
+        seriesRows[0].toolTip = twoLines("Time the GPU was busy with any work: the screen, games, video, compute.")
+        seriesRows[1].toolTip = twoLines("Time spent colouring pixels, the last step in drawing each frame.")
+        seriesRows[2].toolTip = twoLines("Time spent sorting each frame's shapes into screen tiles, before colouring them.")
+        neuralRow.toolTip = twoLines("How busy the machine-learning cores are, from their power against their peak.")
+        fpsRow.toolTip = twoLines("Frames the displays showed in the last second.")
         memorySparkline.capacity = history.capacity
         memorySparkline.place(in: memoryRow)
         memoryDetail.font = .systemFont(ofSize: 10)
@@ -405,8 +402,8 @@ final class GPUPanel: StatsPanel {
         memoryRow.value.stringValue = formatPercent(sample.memoryInUse / gpuMemoryLimit)
         memoryDetail.stringValue = "\(formatGB(sample.memoryInUse)) / \(formatGB(gpuMemoryLimit)) GB"
         memorySparkline.fractions = history.samples.map { $0.memoryInUse / gpuMemoryLimit }
-        let tooltip = "Memory the GPU is using now, out of the \(formatMemory(gpuMemoryLimit)) macOS lets it use; "
-            + "it holds \(formatMemory(sample.memoryAllocated)) set aside. The small graph shows the last three minutes."
+        let tooltip = twoLines("GPU memory in use, of the \(formatMemory(gpuMemoryLimit)) macOS lets it use. "
+            + "It holds \(formatMemory(sample.memoryAllocated)) set aside.")
         memoryRow.toolTip = tooltip
         memoryDetail.toolTip = tooltip
     }

@@ -35,24 +35,21 @@ let otherLimits = HeatLimits(warm: 60, hot: 80)
 func partDescription(_ name: String) -> String? {
     let lower = name.lowercased()
     let rules: [(match: (String) -> Bool, text: String)] = [
-        ({ $0.contains("efficiency core") }, "The CPU's efficiency cores: slower, low-power cores that run background work."),
-        ({ $0.contains("performance core") }, "The CPU's performance cores: the fast cores that run the work you are waiting on."),
-        ({ $0.contains("super core") }, "The CPU's super cores: its fastest cores, for the most demanding work."),
-        ({ $0.contains("heatpipe") || $0.contains("heatsink") },
-         "A heat pipe or heat sink: the metal that carries heat away from the chips."),
-        ({ $0.hasPrefix("gpu") }, "The GPU, the graphics processor: it draws the screen and runs games, video and graphics work."),
-        ({ $0.hasPrefix("cpu") }, "The CPU, the processor that runs macOS and apps."),
-        ({ $0.contains("engine") },
-         "The machine-learning engine: the chip's cores for AI work such as photo search, dictation and Live Text."),
-        ({ $0.contains("memory") }, "The memory (RAM), or the board beside it."),
-        ({ $0.contains("battery") },
-         "The battery. Heat wears batteries out, so it is kept cooler than the chips: Apple's range is up to \(degrees(35))."),
-        ({ $0.contains("ssd") || $0.contains("nand") || $0.hasPrefix("disk") }, "The SSD, the Mac's built-in storage."),
-        ({ $0.contains("wi-fi") || $0.contains("airport") }, "The wireless chip, for Wi-Fi and Bluetooth."),
-        ({ $0.contains("thunderbolt") }, "The Thunderbolt controller, behind the USB-C ports."),
-        ({ $0.contains("image signal") }, "The image signal processor, which handles the camera."),
+        ({ $0.contains("efficiency core") }, "Low-power CPU cores, for background work."),
+        ({ $0.contains("performance core") }, "Fast CPU cores, for the work you wait on."),
+        ({ $0.contains("super core") }, "The fastest CPU cores, for the heaviest work."),
+        ({ $0.contains("heatpipe") || $0.contains("heatsink") }, "Metal that carries heat away from the chips."),
+        ({ $0.hasPrefix("gpu") }, "The graphics processor."),
+        ({ $0.hasPrefix("cpu") }, "The processor that runs macOS and apps."),
+        ({ $0.contains("engine") }, "The machine-learning cores, for AI features."),
+        ({ $0.contains("memory") }, "The memory (RAM)."),
+        ({ $0.contains("battery") }, "The battery. Heat wears it out faster."),
+        ({ $0.contains("ssd") || $0.contains("nand") || $0.hasPrefix("disk") }, "The built-in storage."),
+        ({ $0.contains("wi-fi") || $0.contains("airport") }, "The Wi-Fi and Bluetooth chip."),
+        ({ $0.contains("thunderbolt") }, "The controller behind the USB-C ports."),
+        ({ $0.contains("image signal") }, "The camera's image processor."),
         ({ $0.contains("display") }, "The display."),
-        ({ $0.contains("power") }, "The power management chips, which feed power from the battery and charger to the rest of the Mac."),
+        ({ $0.contains("power") }, "The chips that manage power."),
         ({ $0.contains("soc") || $0.contains("mainboard") || $0.contains("northbridge") || $0.contains("thermal zone") },
          "The main board, around the chips."),
     ]
@@ -182,7 +179,7 @@ func powerLines(_ readings: [Reading], battery charge: BatteryCharge?) -> [Power
     }
     if let battery = byKey["PPBR"] {
         lines.append(PowerLine(id: "PPBR", title: "Battery", value: String(format: "%.1f W", battery),
-                               tooltip: "Power coming out of the battery; about 0 while a charger covers everything."))
+                               tooltip: "Power coming out of the battery; about 0 on the charger."))
     }
     let chargerWatts = byKey["PDTR"] ?? 0, chargerVolts = byKey["VD0R"] ?? 0, chargerAmps = byKey["ID0R"] ?? 0
     if chargerWatts > 0.5 || chargerVolts > 1 {
@@ -201,8 +198,8 @@ func powerLines(_ readings: [Reading], battery charge: BatteryCharge?) -> [Power
         lines.append(PowerLine(
             id: "batteryLeft", title: "Battery left",
             value: String(format: "%.1f/%.1f Wh (%d%%)", charge.leftWh, charge.fullWh, charge.percent),
-            tooltip: String(format: "A full charge holds %.1f Wh; new, it held %.1f Wh. %d charge cycles so far. "
-                + "The percentage is the one the battery icon shows.", charge.fullWh, charge.designWh, charge.cycles)))
+            tooltip: String(format: "A full charge holds %.1f Wh (%.1f Wh new).\n%d charge cycles so far.",
+                            charge.fullWh, charge.designWh, charge.cycles)))
     }
     return lines
 }
@@ -238,10 +235,9 @@ final class TempPanel: StatsPanel {
         ])
         heatGauge.heading = "Hottest part"
         powerGauge.heading = "Power use"
-        heatGauge.toolTip = "The hottest part, on its own limits: the same colours as its row below."
-        powerGauge.toolTip = String(format: "What the whole Mac draws: normal below %.0f W, moderate below %.0f W, "
-            + "high from %.0f W; the gauge ends at %.0f W, this Mac's peak.",
-            powerLimits.moderate, powerLimits.high, powerLimits.high, powerLimits.maximum)
+        heatGauge.toolTip = twoLines("The hottest part, coloured on its own limits like its row below.")
+        powerGauge.toolTip = twoLines(String(format: "What the whole Mac draws: normal under %.0f W, moderate under %.0f W, "
+            + "high above.", powerLimits.moderate, powerLimits.high))
         body.addArrangedSubview(dashboard)
         if !groups.isEmpty {
             body.addArrangedSubview(separatorView("Temperature"))
@@ -302,10 +298,9 @@ final class TempPanel: StatsPanel {
             row.value.stringValue = degrees(group.celsius)
             row.setColor(heat(of: group.name, celsius: group.celsius).color)
             let limits = heatLimits(for: group.name)
-            let sensors = group.count == 1 ? ""
-                : "\(group.count) sensors, \(degrees(group.coolest)) to \(degrees(group.hottest)), weighted toward the hottest. "
-            row.toolTip = (partDescription(group.name).map { $0 + "\n" } ?? "") + sensors
-                + "Yellow from \(degrees(limits.warm)), red from \(degrees(limits.hot))."
+            // Two lines: what the part is, then where its square turns yellow and red.
+            let heatLine = "Yellow from \(degrees(limits.warm)), red from \(degrees(limits.hot))."
+            row.toolTip = (partDescription(group.name).map { $0 + "\n" } ?? "") + heatLine
         }
         temperatureList.setViews(groups.compactMap { temperatureRows[$0.name] }, in: .top)
         // Power rows come and go with the charger.
@@ -314,7 +309,7 @@ final class TempPanel: StatsPanel {
             let row = powerRows[line.id] ?? PanelRow(line.title + ":")
             powerRows[line.id] = row
             row.value.stringValue = line.value
-            row.toolTip = line.tooltip
+            row.toolTip = line.tooltip.map(twoLines)
         }
         powerList.setViews(lines.compactMap { powerRows[$0.id] }, in: .top)
         let byKey = Dictionary(readings.map { ($0.sensor.key, $0) }, uniquingKeysWith: { first, _ in first })

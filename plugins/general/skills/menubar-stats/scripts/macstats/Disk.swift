@@ -315,23 +315,16 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         spaceList.setViews(spaceLegend.compactMap { spaceRows[$0.title] }, in: .top)
         body.addArrangedSubview(spaceList)
         let tips = [
-            "my apps / files": "Everything on the Data volume: your apps, your files, your settings, and the caches "
-                + "and data apps keep. The list below breaks it down by folder.",
-            "macOS system": "The macOS system itself, on a sealed, read-only volume. It is the same size on every Mac "
-                + "with this version of macOS, and only a macOS update changes it.",
-            "update/boot": "What the Mac needs to start up (the Preboot volume), and macOS updates downloaded and "
-                + "waiting to install (the Update volume).",
-            "recovery": "macOS Recovery: a small separate system the Mac starts when you hold the power button at "
-                + "start-up (Command-R on an Intel Mac), to repair the disk or reinstall macOS.",
-            "swap": "The VM volume: memory written to disk when RAM runs short (swap), and the image of memory the "
-                + "Mac saves when it sleeps. It grows and shrinks on its own.",
-            "Free": "Space nothing is using, left for new files. The menu bar also counts Purgeable as free, as "
-                + "Finder does.",
-            "other": "Space APFS keeps for its own bookkeeping, and any volume not listed above.",
-            "Purgeable": "Part of my apps / files that macOS frees on its own when it needs room: caches, "
-                + "iCloud copies, snapshots. Counted as used here and as free in the menu bar, as Finder does.",
+            "my apps / files": "Your apps, files, settings and caches. The list below breaks it down.",
+            "macOS system": "macOS itself, on a sealed read-only volume. Only updates change it.",
+            "update/boot": "Start-up files, and macOS updates waiting to install.",
+            "recovery": "macOS Recovery, for repairing the disk or reinstalling macOS.",
+            "swap": "Memory moved to disk when RAM runs short, and the sleep image.",
+            "other": "Space APFS keeps for its bookkeeping, and any other volume.",
+            "Purgeable": "Caches and copies macOS frees when it needs room; free in the menu bar.",
+            "Free": "Space left for new files.",
         ]
-        for (title, row) in spaceRows { row.toolTip = tips[title] }
+        for (title, row) in spaceRows { row.toolTip = tips[title].map(twoLines) }
         for row in Array(spaceRows.values) + [usedRow] { row.value.stringValue = "…" }
         body.addArrangedSubview(separatorView("My apps / files"))
 
@@ -373,10 +366,7 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         for text in [measuring, status, remeasuring] {
             text.font = .systemFont(ofSize: 10)
             text.textColor = .tertiaryLabelColor
-            text.toolTip = "Private folders (Desktop, Documents, Downloads, Music, Movies, other apps' data, Mail, "
-                + "Messages, Photos) are never opened, so macOS never asks for access to them. A folder holding one "
-                + "shows ≥, at least its size. Folder sizes count a cloned file in full, so they can add up to more "
-                + "than the volume. Double-click a folder to show it in Finder, whose Get Info shows a private folder's size."
+            text.toolTip = twoLines("Private folders are never opened; ≥ means at least. Double-click to show in Finder.")
         }
         measuring.preferredMaxLayoutWidth = Panel.width - 24
         remeasuring.font = NSFontManager.shared.convert(.systemFont(ofSize: 10), toHaveTrait: .italicFontMask)

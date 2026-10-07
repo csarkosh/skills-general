@@ -92,7 +92,7 @@ final class MenuBarItem: NSObject {
     var button: NSStatusBarButton? { item.button }
 
     func show(_ value: String, tooltip: String, alert: Bool = false) {
-        item.button?.toolTip = tooltip
+        item.button?.toolTip = twoLines(tooltip)
         guard value != view.value || alert != view.alert else { return }
         view.value = value
         view.alert = alert
@@ -297,6 +297,24 @@ final class LegendLine: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// Tooltips stay at most two lines. macOS wraps a tooltip only past a width wider than
+/// this, so text longer than one line here breaks at the space that best balances two
+/// lines, and neither runs past it; text with its own line break is left as it is.
+let tooltipLineWidth: CGFloat = 240
+
+func tooltipWidth(_ line: String) -> CGFloat {
+    NSAttributedString(string: line, attributes: [.font: NSFont.toolTipsFont(ofSize: 0)]).size().width
+}
+
+func twoLines(_ text: String) -> String {
+    guard !text.contains("\n"), tooltipWidth(text) > tooltipLineWidth else { return text }
+    let longer = { (space: String.Index) -> CGFloat in
+        max(tooltipWidth(String(text[..<space])), tooltipWidth(String(text[text.index(after: space)...])))
+    }
+    guard let best = text.indices.filter({ text[$0] == " " }).min(by: { longer($0) < longer($1) }) else { return text }
+    return String(text[..<best]) + "\n" + String(text[text.index(after: best)...])
 }
 
 /// A line bar split into coloured parts, drawn like Stats' horizontal bar chart: 10

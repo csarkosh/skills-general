@@ -15,7 +15,7 @@ struct CoreType {
     let short: String  // "E", for the frequency chart's key
     let channel: String  // its IOReport channels' prefix, "ECPU"
     let color: NSColor  // Stats' colour for it
-    let about: String  // what these cores are, for the legend's tooltip
+    let about: String  // what these cores are, for the legend's tooltip: "fast cores, for the work you wait on"
     let cores: [Int]
     let steps: [Double]
 }
@@ -79,15 +79,13 @@ let coreTypes: [CoreType] = {
     }
 
     let efficiency = ("E", "Efficiency cores", "E", "ECPU", NSColor.systemTeal, "voltage-states1-sram",
-                      "slower, low-power cores. macOS runs background work on them (mail, backups, indexing), "
-                      + "which keeps the Mac cool and the battery lasting.")
-    let performance = "fast cores. macOS gives them the work you are waiting on: opening apps, "
-        + "exporting, compiling, games."
+                      "low-power cores, for background work")
+    let performance = "fast cores, for the work you wait on"
     let kinds: [(letter: String, name: String, short: String, channel: String, color: NSColor, table: String, about: String)] =
         isM5OrNewer
         ? [efficiency, ("M", "Performance cores", "P", "MCPU", .systemIndigo, "voltage-states22-sram", performance),
            ("P", "Super cores", "S", "PCPU", .systemOrange, "voltage-states5-sram",
-            "fastest cores, for the most demanding work.")]
+            "fastest cores, for the heaviest work")]
         : [efficiency, ("P", "Performance cores", "P", "PCPU", .systemIndigo, "voltage-states5-sram", performance)]
     return kinds.compactMap { kind in
         guard let cores = clusters[kind.letter] else { return nil }
@@ -463,8 +461,8 @@ final class CPUPanel: StatsPanel {
         usageGauge.heading = "Usage"
         heatGauge.heading = "Temperature"
         usageGauge.subtitle = "\(cpuModel), \(ProcessInfo.processInfo.processorCount) cores"
-        usageGauge.toolTip = "How busy the CPU is: normal below 60%, busy below 80%, heavy from 80%, Stats' zones."
-        heatGauge.toolTip = "The CPU's temperature on the chip's limits, as its row in the Temp menu has it."
+        usageGauge.toolTip = twoLines("How busy the CPU is: normal under 60%, busy under 80%, heavy above.")
+        heatGauge.toolTip = twoLines("The CPU's temperature, coloured on the chip's limits as in the Temp menu.")
         body.addArrangedSubview(dashboard)
 
         body.addArrangedSubview(separatorView("Usage"))
@@ -472,13 +470,9 @@ final class CPUPanel: StatsPanel {
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
         for row in partRows + [idleRow] { body.addArrangedSubview(row) }
-        partRows[0].toolTip = "The share of time the CPU spent running macOS itself: the kernel and drivers reading "
-            + "and writing files, moving network traffic, managing memory and talking to hardware on apps' behalf. "
-            + "It is usually small; a large share often means heavy disk or network work."
-        partRows[1].toolTip = "The share of time the CPU spent running apps and the background programs that come "
-            + "with them: everything outside macOS's core. Busy apps raise it; Top processes below shows which."
-        idleRow.toolTip = "The share of time the CPU had nothing to run. Idle cores sleep, so a high Idle means less "
-            + "heat and a longer-lasting battery. System, User and Idle add up to 100%."
+        partRows[0].toolTip = twoLines("Time spent running macOS itself: the kernel and drivers working for apps.")
+        partRows[1].toolTip = twoLines("Time spent running apps. Top processes below shows which ones.")
+        idleRow.toolTip = twoLines("Time with nothing to run. Idle cores sleep, saving heat and battery.")
 
         body.addArrangedSubview(separatorView("Load & frequency"))
         let column = { (chart: MiniChart, legend: [LegendLine]) -> NSStackView in
@@ -501,18 +495,11 @@ final class CPUPanel: StatsPanel {
         loadChart.capacity = history.capacity
         frequencyChart.capacity = history.capacity
         let cores = ProcessInfo.processInfo.processorCount
-        loadChart.toolTip = "Load over the last three minutes, as a share of the \(cores) cores. At 100%, the dashed line, "
-            + "every core was wanted; above it, tasks were queuing."
-        frequencyChart.toolTip = "Each core type's clock speed over the last three minutes, against the fastest it can go: "
-            + "a line at the top means those cores ran flat out."
-        loadLegend.toolTip = "Core load: how much work wanted the CPU's \(cores) cores over the last minute. It counts "
-            + "the tasks running on a core or waiting for one (the load average) as a share of the cores. Under 100% "
-            + "some cores were free; at 100% every core had work; above it, tasks had to wait their turn, and the "
-            + "Mac can feel slow."
+        loadChart.toolTip = twoLines("The last 3 minutes of core load. Above the dashed 100% line, tasks had to wait.")
+        frequencyChart.toolTip = twoLines("Each core type's speed over the last 3 minutes, against its top speed.")
+        loadLegend.toolTip = twoLines("Tasks running on or waiting for the \(cores) cores, as a share of them. Over 100%, tasks wait.")
         for (legend, type) in zip(speedLegends, coreTypes) {
-            legend.toolTip = "\(type.name): the CPU's \(type.cores.count) \(type.about) Shown: how fast they ran over "
-                + "the last second, on average, and the fastest they can go. macOS slows cores down when there is "
-                + "little to do, to save power, so a low speed is normal when the Mac is quiet."
+            legend.toolTip = twoLines("The \(type.cores.count) \(type.about). Speed now, of their top speed.")
         }
 
         body.addArrangedSubview(separatorView("Top processes"))
