@@ -1,4 +1,5 @@
-// MacStats: menu bar items that sit beside the Stats app's CPU item, drawn like it:
+// MacStats: menu bar items drawn like the Stats app's "mini" widgets: CPU (usage, with
+// gauges, history, load, clock speeds, details and top processes in its panel),
 // GPU (utilization, with gauges, history, details and top GPU apps in its panel),
 // RAM (memory in use, with its history and top processes in its panel),
 // Temp (the hottest part, with every sensor in its panel) and Disk (used/total space,
@@ -7,9 +8,10 @@
 //
 //   swiftc -O *.swift -o MacStats           # setup.sh builds it into MacStats.app
 //   MacStats                                # runs both menu bar items
-//   MacStats --show-panel gpu|ram|temp|disk[,…]  # runs, opening those panels in turn, as clicks would
-//   MacStats --render gpu|ram|temp|disk out.png  # draws that menu bar item to a PNG and exits
+//   MacStats --show-panel cpu|gpu|ram|temp|disk[,…]  # runs, opening those panels in turn, as clicks would
+//   MacStats --render cpu|gpu|ram|temp|disk out.png  # draws that menu bar item to a PNG and exits
 //                                           # (with --alert, Temp as it looks when hot)
+//   MacStats --cpu                          # prints the CPU panel and exits
 //   MacStats --gpu                          # prints the GPU panel and exits
 //   MacStats --memory                       # prints the RAM panel and exits
 //   MacStats --sensors                      # prints the Temp panel and exits
@@ -22,7 +24,16 @@
 
 import Cocoa
 
+/// The widest values the items show, which fix their widths so neighbours never shift:
+/// a percentage, and a three-digit temperature in the Mac's unit.
+let percentWidest = "100%"
+let temperatureWidest = degrees(100)
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var cpu: MenuBarItem!
+    private let cpuSampler = CPUSampler()
+    private let cpuHistory = CPUHistory()
+    private lazy var cpuPanel = CPUPanel(history: cpuHistory, reader: reader)
     private var gpu: MenuBarItem!
     private let gpuSampler = GPUSampler()
     private let gpuHistory = GPUHistory()
@@ -39,9 +50,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        gpu = MenuBarItem(autosaveName: "MacStatsGPU", label: "GPU") { [unowned self] in gpuPanel.toggle(under: $0) }
-        ram = MenuBarItem(autosaveName: "MacStatsRAM", label: "RAM") { [unowned self] in ramPanel.toggle(under: $0) }
-        temp = MenuBarItem(autosaveName: "MacStatsTemp", label: "Temp") { [unowned self] in tempPanel.toggle(under: $0) }
+        cpu = MenuBarItem(autosaveName: "MacStatsCPU", label: "CPU", widest: percentWidest) { [unowned self] in cpuPanel.toggle(under: $0) }
+        gpu = MenuBarItem(autosaveName: "MacStatsGPU", label: "GPU", widest: percentWidest) { [unowned self] in gpuPanel.toggle(under: $0) }
+        ram = MenuBarItem(autosaveName: "MacStatsRAM", label: "RAM", widest: percentWidest) { [unowned self] in ramPanel.toggle(under: $0) }
+        temp = MenuBarItem(autosaveName: "MacStatsTemp", label: "Temp", widest: temperatureWidest) { [unowned self] in tempPanel.toggle(under: $0) }
         disk = MenuBarItem(autosaveName: "MacStatsDisk", label: "Disk") { [unowned self] in diskPanel.toggle(under: $0) }
         refresh()
         // Every second, like Stats' CPU and GPU.
@@ -50,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // "--show-panel disk,temp" opens each in turn, two seconds apart, as clicks would.
         for (index, which) in (argument(after: "--show-panel") ?? "").split(separator: ",").enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1 + 2 * Double(index)) { [unowned self] in
+                if which == "cpu", let button = cpu.button { cpuPanel.toggle(under: button) }
                 if which == "gpu", let button = gpu.button { gpuPanel.toggle(under: button) }
                 if which == "ram", let button = ram.button { ramPanel.toggle(under: button) }
                 if which == "temp", let button = temp.button { tempPanel.toggle(under: button) }
@@ -59,6 +72,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refresh() {
+        if let sample = cpuSampler.sample() {
+            cpuHistory.add(sample)
+            let cpuText = cpuItemText(sample)
+            cpu.show(cpuText.value, tooltip: cpuText.tooltip)
+            if cpuPanel.isVisible { cpuPanel.update(sample) }
+        }
         if let sample = gpuSampler.sample() {
             gpuHistory.add(sample)
             let gpuText = gpuItemText(sample)
@@ -94,24 +113,33 @@ func fail(_ message: String) -> Never {
 
 if arguments.contains("--render") {
     guard let index = arguments.firstIndex(of: "--render"), index + 2 < arguments.count else {
-        fail("usage: MacStats --render gpu|ram|temp|disk <out.png>")
+        fail("usage: MacStats --render cpu|gpu|ram|temp|disk <out.png>")
     }
     let path = arguments[index + 2]
     switch arguments[index + 1] {
+    case "cpu":
+        let sampler = CPUSampler()
+        _ = sampler.sample()
+        Thread.sleep(forTimeInterval: 0.5)
+        guard let sample = sampler.sample() else { fail("Could not read the CPU.") }
+        exit(renderMiniView(label: "CPU", value: cpuItemText(sample).value, widest: percentWidest, to: path))
     case "gpu":
         guard let sample = GPUSampler().sample() else { fail("Could not read the GPU.") }
-        exit(renderMiniView(label: "GPU", value: gpuItemText(sample).value, to: path))
+        exit(renderMiniView(label: "GPU", value: gpuItemText(sample).value, widest: percentWidest, to: path))
     case "ram":
         guard let usage = memoryUsage() else { fail("Could not read memory use.") }
-        exit(renderMiniView(label: "RAM", value: ramItemText(usage).value, to: path))
+        exit(renderMiniView(label: "RAM", value: ramItemText(usage).value, widest: percentWidest, to: path))
     case "temp":
         let text = tempItemText(SensorReader().read())
-        exit(renderMiniView(label: "Temp", value: text.value, alert: text.alert || arguments.contains("--alert"), to: path))
+        exit(renderMiniView(label: "Temp", value: text.value, widest: temperatureWidest, alert: text.alert || arguments.contains("--alert"), to: path))
     case "disk":
         guard let text = diskItemText(DiskSampler()) else { fail("Could not read the startup disk's capacity.") }
         exit(renderMiniView(label: "Disk", value: text.value, to: path))
-    default: fail("usage: MacStats --render gpu|ram|temp|disk <out.png>")
+    default: fail("usage: MacStats --render cpu|gpu|ram|temp|disk <out.png>")
     }
+}
+if arguments.contains("--cpu") {
+    exit(cpuReport())
 }
 if arguments.contains("--gpu") {
     exit(gpuReport())

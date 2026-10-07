@@ -19,8 +19,8 @@ Scripts carry their own dependencies, so a skill needs only Node — except thes
   (`python3 -m pip install --user google-auth`), and `gcloud` for its one-time setup script.
 - `call-recorder`: macOS on Apple Silicon, ffmpeg, Python 3.9 or newer with `mlx-whisper` in a
   venv, and the BlackHole 2ch audio driver for recording calls.
-- `menubar-stats`: macOS, Homebrew and the Xcode Command Line Tools (`xcode-select --install`);
-  its setup script installs the Stats app and builds MacStats (the Temp and Disk items) with `swiftc`.
+- `menubar-stats`: macOS and the Xcode Command Line Tools (`xcode-select --install`); its setup
+  script builds MacStats, the app that draws all five items, with `swiftc`.
 
 ## Use it in a repository
 

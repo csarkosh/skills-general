@@ -11,8 +11,16 @@ import Cocoa
 final class MiniView: NSView {
     var label = ""
     var value = ""
+    /// The widest value the item can show ("100%"): the item keeps that width whatever
+    /// it shows, so items beside it do not shift as values change.
+    var widest: String?
     /// Tints the value a soft red, for a reading in the red.
     var alert = false
+    /// A fixed-width item draws digits of one width, so "11%" is as wide as "88%"; the
+    /// others keep the narrower proportional digits, which save menu bar room.
+    var valueFont: NSFont {
+        widest == nil ? .systemFont(ofSize: 12, weight: .regular) : .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -30,7 +38,7 @@ final class MiniView: NSView {
         // Soft red: red mixed with the plain text colour, so it reads as a hint, not an alarm.
         let tint = NSColor.systemRed.blended(withFraction: isDarkMode ? 0.35 : 0.15, of: plain) ?? .systemRed
         NSAttributedString(string: value, attributes: [
-            .font: NSFont.systemFont(ofSize: 12, weight: .regular),
+            .font: valueFont,
             .foregroundColor: alert ? tint : plain,
             .paragraphStyle: left,
         ]).draw(with: CGRect(x: 0, y: 1, width: bounds.width, height: 13))
@@ -44,10 +52,11 @@ final class MiniView: NSView {
     }
 
     func contentWidth() -> CGFloat {
-        let font = { (size: CGFloat, weight: NSFont.Weight) in NSFont.systemFont(ofSize: size, weight: weight) }
+        let valueWidth = { (text: String) in NSAttributedString(string: text, attributes: [.font: self.valueFont]).size().width }
         return ceil(max(
-            NSAttributedString(string: value, attributes: [.font: font(12, .regular)]).size().width,
-            NSAttributedString(string: label, attributes: [.font: font(7, .light)]).size().width))
+            valueWidth(value),
+            widest.map(valueWidth) ?? 0,
+            NSAttributedString(string: label, attributes: [.font: NSFont.systemFont(ofSize: 7, weight: .light)]).size().width))
     }
 }
 
@@ -60,13 +69,15 @@ final class MenuBarItem: NSObject {
     private let onClick: (NSStatusBarButton) -> Void
 
     /// `autosaveName` is what macOS stores the item's place under, as
-    /// "NSStatusItem Preferred Position <name>" in the app's defaults.
-    init(autosaveName: String, label: String, onClick: @escaping (NSStatusBarButton) -> Void) {
+    /// "NSStatusItem Preferred Position <name>" in the app's defaults. `widest` is the
+    /// widest value it can show, which fixes its width (see MiniView).
+    init(autosaveName: String, label: String, widest: String? = nil, onClick: @escaping (NSStatusBarButton) -> Void) {
         self.onClick = onClick
         item = NSStatusBar.system.statusItem(withLength: 40)
         super.init()
         item.autosaveName = autosaveName
         view.label = label
+        view.widest = widest
         let menuBarHeight = NSApplication.shared.mainMenu?.menuBarHeight ?? 0
         let height = (menuBarHeight == 0 ? 22 : menuBarHeight) - 4
         view.frame = CGRect(x: 0, y: 2, width: 40, height: height)
@@ -103,10 +114,11 @@ final class MenuBarItem: NSObject {
 
 /// Draws a menu bar item, at 4x, on a dark menu bar, so its look can be checked
 /// without Screen Recording permission.
-func renderMiniView(label: String, value: String, alert: Bool = false, to path: String) -> Int32 {
+func renderMiniView(label: String, value: String, widest: String? = nil, alert: Bool = false, to path: String) -> Int32 {
     let view = MiniView()
     view.label = label
     view.value = value
+    view.widest = widest
     view.alert = alert
     view.appearance = NSAppearance(named: .darkAqua)
     let width = view.contentWidth()

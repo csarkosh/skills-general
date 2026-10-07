@@ -9,23 +9,28 @@ This skill reproduces one layout, left-most in the menu bar and in this order:
 
 | CPU | GPU | RAM | Temp | Disk |
 |---|---|---|---|---|
-| `CPU` over `12%` | `GPU` over `84%` (utilization) | `RAM` over `89%` (memory in use) | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk` over `215.9/245.1 GB` (used/total) |
+| `CPU` over `12%` (usage) | `GPU` over `84%` (utilization) | `RAM` over `89%` (memory in use) | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk` over `215.9/245.1 GB` (used/total) |
 
-CPU comes from **Stats** (free, `brew install --cask stats`). GPU, RAM, Temp and Disk come from
-**MacStats**, a small Swift app in `scripts/macstats/`, built on the Mac. Stats cannot draw them as
-wanted: its Disk widgets cannot put a label over custom text, its temperature list repeats every
-sensor ("CPU efficiency core 1" to "4", "GPU 1" to "8"), and its RAM history chart shows only used
-and free. Both MacStats items update every second, like
-Stats' CPU and GPU, together for under 0.5% of one core, and both drop down a panel styled like
-Stats'. A panel opens at menu level, above every window whichever app is in front; opening one
-closes the other; a click anywhere outside it closes it (watching mouse clicks needs no
-permission). Right-click either for Quit.
+All five come from **MacStats**, a small Swift app in `scripts/macstats/`, built on the Mac. It
+draws them like the Stats app's (github.com/exelban/stats) "mini" widgets, a small label over the
+value, and reads most figures the way Stats does, but Stats could not show them as wanted: its
+Disk widgets cannot put a label over custom text, its temperature list repeats every sensor ("CPU
+efficiency core 1" to "4", "GPU 1" to "8"), and its history charts show one total. Every item
+updates every second, all together for well under 1% of one core, and drops down a panel styled
+like Stats'. A panel opens at menu level, above every window whichever app is in front; opening
+one closes any other; a click anywhere outside it closes it (watching mouse clicks needs no
+permission). Right-click any item for Quit.
+
+CPU, GPU, RAM and Temp keep one width whatever they show (as wide as `100%`, or a three-digit
+temperature, in digits of one width), so the items beside them never shift as values change.
+Disk keeps the narrower ordinary digits: its value changes rarely, and the menu bar beside a
+notch has little room.
 
 Each feature is one file, so a later App Store edition can leave one out (the sandbox forbids the
 SMC reads and the disk-wide folder walk): `MenuKit.swift` (the item and the panel's look, shared),
-`GPU.swift`, `RAM.swift`, `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
-`Battery.swift` (the battery's charge, for Temp's Power section), and `main.swift` (starts both,
-and the command line). `SMC.swift` and `SensorCatalog.swift` are adapted
+`CPU.swift`, `GPU.swift` (both with `IOReport.swift`, the private counters they read), `RAM.swift`, `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
+`Battery.swift` (the battery's charge, for Temp's Power section), and `main.swift` (starts them
+all, and the command line). `SMC.swift` and `SensorCatalog.swift` are adapted
 from Stats (MIT); its licence is `scripts/macstats/LICENSE-stats.txt`.
 
 Use `scripts/setup.sh` in this skill's directory rather than writing your own: it holds the
@@ -38,23 +43,17 @@ bash <this skill's directory>/scripts/setup.sh              # install, or repair
 bash <this skill's directory>/scripts/setup.sh --uninstall  # remove MacStats and its login agents
 ```
 
-It needs three system packages. When one is missing it stops and prints the command, and
-the user must run that command themselves at a real terminal:
+It needs one system package, the **Xcode Command Line Tools** (`swiftc` builds MacStats). When
+they are missing the script stops and prints `xcode-select --install`, which the user must run
+themselves at a real terminal and then click Install. A "Background Items Added" notice for the
+login agent is information only. Install nothing the user did not ask for.
 
-| Package | Why | Install (the user's hands) |
-|---|---|---|
-| Homebrew | installs Stats | the official one-liner from brew.sh, which asks for the user's password; its "Next steps" put `brew` on the PATH |
-| Xcode Command Line Tools | `swiftc` builds MacStats | `xcode-select --install`, then click Install (Homebrew's installer usually installs them already) |
-| Stats | CPU | the script runs `brew install --cask stats` itself |
-
-Also for the user: on its first launch macOS may ask whether to open Stats, an app downloaded
-from the internet (click Open), and a "Background Items Added" notice for the login agents is
-information only. Install nothing the user did not ask for.
-
-The script stops and restarts Stats and MacStats, writes their settings (Stats' GPU, RAM, Sensors and
-Disk modules off), adds login agents `sh.csarko.stats-at-login` and `sh.csarko.macstats`
-(`~/Library/LaunchAgents`), replaces DiskMenu (MacStats' older Disk-only form) if the Mac has it,
-and then prints the menu bar's order. It rebuilds MacStats only when its source changed. It never
+The script stops and restarts MacStats, writes the items' places, adds the login agent
+`sh.csarko.macstats` (`~/Library/LaunchAgents`), and then prints the menu bar's order. It retires
+what earlier versions set up: DiskMenu (MacStats' older Disk-only form), and the
+`sh.csarko.stats-at-login` agent that kept the Stats app running for the CPU item; then it stops
+Stats and turns its CPU item off, but leaves the app installed (it says how to remove it). A Stats
+the script never set up is left alone. It rebuilds MacStats only when its source changed. It never
 quits other apps. Zoom takes its new place only when it restarts, so ask the user whether a call
 is on, then have them quit and reopen Zoom, or run `osascript -e 'quit app "zoom.us"'` and then
 `open -a zoom.us` (macOS may ask to let the terminal control zoom.us).
@@ -67,8 +66,7 @@ when it starts, so restart the app after writing it.
 
 | Item | Defaults domain | Name | Value |
 |---|---|---|---|
-| CPU | `eu.exelban.Stats` | `CPU_mini` | 1300 |
-| GPU, RAM, Temp, Disk | `sh.csarko.MacStats` | `MacStatsGPU`, `MacStatsRAM`, `MacStatsTemp`, `MacStatsDisk` | 1250, 1200, 1150, 1100 |
+| CPU, GPU, RAM, Temp, Disk | `sh.csarko.MacStats` | `MacStatsCPU`, `MacStatsGPU`, `MacStatsRAM`, `MacStatsTemp`, `MacStatsDisk` | 1300, 1250, 1200, 1150, 1100 |
 | Zoom | `us.zoom.xos` | `Item-0` | 450 (the script writes it only if Zoom is installed) |
 
 An app that never saved a place lands wherever there is room, often inside the group. To fix
@@ -84,16 +82,31 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 - `swift scripts/menubar-order.swift` prints the status items left to right: x, width, owner,
   name. On macOS 26 every owner is "Control Center" and the names are the ones in the table
   above. The group is unbroken when each x is the previous x plus its width. Without Screen
-  Recording permission the names may be blank; tell the items apart by width (CPU about 47, GPU
-  and RAM about 43, Temp about 45, Disk about 100, Zoom about 32). It prints nothing while an app is in
+  Recording permission the names may be blank; tell the items apart by width (CPU, GPU and RAM
+  about 50, Temp about 52, Disk about 100, Zoom about 32). It prints nothing while an app is in
   full screen.
-- `MacStats --render gpu|ram|temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
+- `MacStats --render cpu|gpu|ram|temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
   draws that item to a PNG; open the image to look at it.
 
-From a terminal, `MacStats --gpu` prints the GPU panel, `--memory` the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
+From a terminal, `MacStats --cpu` prints the CPU panel, `--gpu` the GPU panel, `--memory` the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
 temperatures' weighted value, `--spaces` the disk's five volumes, `--legend` the Disk panel's
 Spaces rows in order, `--report` its folders (add a folder to list only it, and `--min-mb N` to
 change the cut-off), and `--show-panel temp|disk[,…]` starts it and opens those panels in turn, as clicks would.
+
+## The CPU panel
+
+Two gauges like Temp's: usage (System plus User) on Stats' own zones (normal below 60%, busy below
+80%, heavy from 80%), and the CPU's temperature on the chip's limits. **Usage**: a three-minute
+chart with System (red) and User (blue) stacked from the bottom and Idle the space above, then
+those rows and Idle (grey) in the same colours, and each core type's usage (Efficiency cores,
+Performance cores, and from M5 on Super cores, from the cores' cluster letters in the registry).
+**Average load**: the 1, 5 and 15 minute load averages, how many tasks wanted a core. **Frequency**:
+each core type's average clock speed over the last second, from the time IOReport says its
+clusters spent at each clock step (the steps come from the power manager's voltage tables), and
+All cores weighted by core count, as Stats reads it. **Details**: model, cores by type and uptime.
+**Top processes**: `ps`'s %CPU, as Stats lists them (macOS averages it over the last minute or so),
+refreshed every two seconds while the panel is open; the header's icon opens Activity Monitor.
+System, User and Idle are Stats' figures from the CPU's tick counts, User without "nice" time.
 
 ## The GPU panel
 
@@ -212,10 +225,7 @@ To check that a change prompts for nothing, run the installed app as itself (`op
 
 | Mistake | What happens |
 |---|---|
-| `defaults write` while Stats is running | Stats reads its settings only when it starts; stop it, write, start it |
-| `open -a Stats` while Stats is running | Stats opens its Settings window; the login agent checks `pgrep` first |
-| Leaving Stats' first-run window on | Its preset page overwrites the chosen modules; the script sets `setupProcess` to skip it |
-| Comparing with `df` | Stats and MacStats count purgeable space as free and use decimal GB, so they read higher than `df -h` |
-| Too many icons on a notched MacBook | macOS hides the left-most items first, so this group is the first to vanish; turn off icons the user doesn't need |
+| `defaults write` of a place while the app runs | An app reads its items' places only when it starts; stop it, write, start it |
+| Comparing with `df` | MacStats counts purgeable space as free and uses decimal GB, so it reads higher than `df -h` |
+| Too many icons on a notched MacBook | Beside the notch there is about 645 pt; macOS hides the left-most items first, without a word, so this group is the first to vanish (and the order script stops listing a hidden item); turn off icons the user doesn't need |
 | An item never appears on macOS 26 | Check System Settings › Menu Bar › Allow in the Menu Bar for that app |
-| Guessing a Stats setting's name | Read Stats' source for the key. Widgets are `<Module>_widget`, on/off is `<Module>_state` |

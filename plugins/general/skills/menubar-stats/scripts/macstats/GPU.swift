@@ -52,68 +52,7 @@ func gpuInfo() -> GPUInfo? {
     return GPUInfo(model: model, cores: (props["gpu-core-count"] as? NSNumber)?.intValue)
 }
 
-// MARK: - IOReport: the ML engine's energy and the displays' frames
-
-// IOReport is a private macOS library, so it is looked up at run time rather than
-// linked; on a Mac without it, the ML engine and FPS rows read "–".
-private let ioReport = dlopen("/usr/lib/libIOReport.dylib", RTLD_NOW)
-private func ioReportFunction<T>(_ name: String, as type: T.Type) -> T? {
-    guard let ioReport, let pointer = dlsym(ioReport, name) else { return nil }
-    return unsafeBitCast(pointer, to: type)
-}
-private typealias CopyChannelsInGroup = @convention(c) (CFString?, CFString?, UInt64, UInt64, UInt64) -> Unmanaged<CFMutableDictionary>?
-private typealias MergeChannels = @convention(c) (CFMutableDictionary, CFDictionary, CFTypeRef?) -> Void
-private typealias CreateSubscription = @convention(c) (UnsafeMutableRawPointer?, CFMutableDictionary,
-                                                       UnsafeMutablePointer<Unmanaged<CFMutableDictionary>?>?, UInt64, CFTypeRef?) -> OpaquePointer?
-private typealias CreateSamples = @convention(c) (OpaquePointer, CFMutableDictionary, CFTypeRef?) -> Unmanaged<CFDictionary>?
-private typealias ChannelString = @convention(c) (CFDictionary) -> Unmanaged<CFString>?
-private typealias SimpleIntegerValue = @convention(c) (CFDictionary, Int32) -> Int64
-
-private let copyChannelsInGroup = ioReportFunction("IOReportCopyChannelsInGroup", as: CopyChannelsInGroup.self)
-private let mergeChannels = ioReportFunction("IOReportMergeChannels", as: MergeChannels.self)
-private let createSubscription = ioReportFunction("IOReportCreateSubscription", as: CreateSubscription.self)
-private let createSamples = ioReportFunction("IOReportCreateSamples", as: CreateSamples.self)
-private let channelGroup = ioReportFunction("IOReportChannelGetGroup", as: ChannelString.self)
-private let channelSubGroup = ioReportFunction("IOReportChannelGetSubGroup", as: ChannelString.self)
-private let channelName = ioReportFunction("IOReportChannelGetChannelName", as: ChannelString.self)
-private let channelUnit = ioReportFunction("IOReportChannelGetUnitLabel", as: ChannelString.self)
-private let simpleIntegerValue = ioReportFunction("IOReportSimpleGetIntegerValue", as: SimpleIntegerValue.self)
-
-/// A subscription to some IOReport channels, read as running totals.
-private final class ReportSubscription {
-    private let channels: CFMutableDictionary
-    private let subscription: OpaquePointer
-
-    /// The channels of `groups`, with `subGroup` if given, merged into one subscription.
-    init?(groups: [String], subGroup: String?) {
-        guard let copyChannelsInGroup, let mergeChannels, let createSubscription else { return nil }
-        var merged: CFMutableDictionary?
-        for group in groups {
-            guard let channel = copyChannelsInGroup(group as CFString, subGroup as CFString?, 0, 0, 0)?.takeRetainedValue() else { continue }
-            if let merged { mergeChannels(merged, channel, nil) } else { merged = channel }
-        }
-        guard let merged, (merged as NSDictionary)["IOReportChannels"] != nil else { return nil }
-        var unused: Unmanaged<CFMutableDictionary>?
-        guard let subscription = createSubscription(nil, merged, &unused, 0, nil) else { return nil }
-        unused?.release()
-        channels = merged
-        self.subscription = subscription
-    }
-
-    /// Each channel now: its group, subgroup, name, unit and value.
-    func sample() -> [(group: String, subGroup: String, name: String, unit: String, value: Int64)] {
-        guard let createSamples, let channelGroup, let channelSubGroup, let channelName, let channelUnit, let simpleIntegerValue,
-              let sample = createSamples(subscription, channels, nil)?.takeRetainedValue(),
-              let list = (sample as NSDictionary)["IOReportChannels"] as? [CFDictionary] else { return [] }
-        return list.map { item in
-            (channelGroup(item)?.takeUnretainedValue() as String? ?? "",
-             channelSubGroup(item)?.takeUnretainedValue() as String? ?? "",
-             channelName(item)?.takeUnretainedValue() as String? ?? "",
-             (channelUnit(item)?.takeUnretainedValue() as String? ?? "").trimmingCharacters(in: .whitespaces),
-             simpleIntegerValue(item, 0))
-        }
-    }
-}
+// MARK: - The ML engine's energy and the displays' frames, from IOReport
 
 /// The ML engine's peak power by chip, as Stats has it, so its power reads as a share.
 private func neuralEnginePeakWatts() -> Double {
@@ -220,8 +159,12 @@ final class GPUAppSampler {
         return gpuTime.compactMap { pid, time -> GPUApp? in
             let share = (time - (last.gpuTime[pid] ?? time)) / elapsed
             guard share > 0.0005 else { return nil }
-            return GPUApp(pid: pid, name: NSRunningApplication(processIdentifier: pid)?.localizedName
-                              ?? executableName(pid) ?? names[pid] ?? "pid \(pid)",
+            let short = names[pid] ?? "pid \(pid)"
+            // The registry's name is cut to 16 characters; the executable's file name
+            // gives it in full, used only where it starts with the cut one (a file can
+            // be named otherwise, such as by a version number).
+            let full = executableName(pid).flatMap { $0.hasPrefix(short) ? $0 : nil }
+            return GPUApp(pid: pid, name: NSRunningApplication(processIdentifier: pid)?.localizedName ?? full ?? short,
                           share: min(1, share))
         }
         .sorted { $0.share > $1.share }
@@ -231,7 +174,7 @@ final class GPUAppSampler {
 
 /// A process's executable name in full: the registry cuts names to 16 characters
 /// ("Google Chrome He"), and helpers have no app to name them.
-private func executableName(_ pid: Int32) -> String? {
+func executableName(_ pid: Int32) -> String? {
     var path = [CChar](repeating: 0, count: 4096)
     guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { return nil }
     return URL(fileURLWithPath: String(cString: path)).lastPathComponent

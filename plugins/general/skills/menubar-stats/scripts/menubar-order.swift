@@ -36,7 +36,7 @@ if items.isEmpty {
 if items.allSatisfy({ $0.name.isEmpty }) {
     FileHandle.standardError.write("""
     Item names are hidden (the terminal probably lacks Screen Recording permission).
-    Tell the items apart by width: CPU about 47, GPU and RAM about 43 each, Temp about 45,
+    Tell the items apart by width: CPU, GPU and RAM about 50 each, Temp about 52,
     Disk about 100, Zoom about 32.
 
     """.data(using: .utf8)!)

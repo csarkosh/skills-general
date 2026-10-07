@@ -43,7 +43,7 @@ describe('menubar-stats', () => {
       assert.ok(match, `setup.sh saves a position for ${name}`);
       return Number(match[1]);
     };
-    const order = ['CPU_mini', 'MacStatsGPU', 'MacStatsRAM', 'MacStatsTemp', 'MacStatsDisk', 'Item-0'].map(position);
+    const order = ['MacStatsCPU', 'MacStatsGPU', 'MacStatsRAM', 'MacStatsTemp', 'MacStatsDisk', 'Item-0'].map(position);
     for (let i = 1; i < order.length; i++) assert.ok(order[i - 1] > order[i], 'a larger number sits further left');
   });
 
@@ -60,6 +60,42 @@ describe('menubar-stats', () => {
     after(() => rmSync(dirname(binary), { recursive: true, force: true }));
 
     const isPng = (path) => assert.deepEqual([...readFileSync(path).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], 'writes a PNG');
+
+    it('renders the CPU item as its usage, as wide for any value', (t) => {
+      const png = join(tempDir(t, 'macstats-png'), 'cpu.png');
+      assert.match(runOk(binary, ['--render', 'cpu', png]).stdout, /^\d+%\n$/);
+      isPng(png);
+      // The item is as wide as "100%" whatever it shows, so the items beside it never shift.
+      const width = (file) => readFileSync(file).readUInt32BE(16);
+      const ram = join(tempDir(t, 'macstats-png'), 'ram.png');
+      runOk(binary, ['--render', 'ram', ram]);
+      assert.equal(width(png), width(ram), 'the CPU and RAM items are as wide, whatever their values');
+    });
+
+    it('reads the CPU: System, User and Idle add up, each core type, load, clock speeds, uptime and processes', () => {
+      const lines = runOk(binary, ['--cpu'], { timeout: 30_000 }).stdout.trim().split('\n');
+      const value = (title) => lines.find((line) => line.startsWith(`${title}\t`))?.split('\t').slice(1);
+      const percent = (title) => Number(value(title)[0].replace('%', ''));
+      const sum = percent('System') + percent('User') + percent('Idle');
+      assert.ok(Math.abs(sum - 100) <= 2, `System, User and Idle add up to 100% (${sum})`);
+      for (const title of ['1 minute', '5 minutes', '15 minutes']) assert.ok(Number(value(title)[0]) >= 0, `${title} load`);
+      assert.match(value('Uptime')[0], /\d/);
+      if (process.arch === 'arm64') {
+        const types = ['Efficiency cores', 'Performance cores'];
+        const counts = types.map((title) => lines.filter((line) => line.startsWith(`${title}\t`)).at(-1).split('\t'));
+        assert.equal(counts.reduce((total, [, count]) => total + Number(count), 0), Number(runOk('sysctl', ['-n', 'hw.ncpu']).stdout),
+          'the core types hold every core');
+        for (const [title, , steps] of counts) {
+          const mhz = steps.split(',').map((step) => Number.parseInt(step, 10));
+          assert.ok(mhz.length > 1 && mhz.every((step, i) => step > 0 && (i === 0 || step >= mhz[i - 1])), `${title}' clock steps rise`);
+          const speed = Number.parseInt(lines.filter((line) => line.startsWith(`${title}\t`))[1].split('\t')[1], 10);
+          assert.ok(speed >= mhz[0] && speed <= mhz.at(-1), `${title}' speed (${speed} MHz) is within its steps`);
+        }
+      }
+      const processes = lines.slice(lines.indexOf('Top processes') + 1).map((line) => Number(line.split('\t')[1].replace('%', '')));
+      assert.ok(processes.length > 0, 'lists processes');
+      for (let i = 1; i < processes.length; i++) assert.ok(processes[i - 1] >= processes[i], 'the busiest first');
+    });
 
     it('renders the GPU item as its utilization', (t) => {
       const png = join(tempDir(t, 'macstats-png'), 'gpu.png');

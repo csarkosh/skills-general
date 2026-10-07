@@ -1,14 +1,14 @@
 #!/bin/bash
-# Sets up the menu bar stats group on a Mac, left-most in this order: CPU (the Stats
-# app), then GPU, RAM, Temp and Disk (MacStats, built here from macstats/). Safe to
-# run again: it rewrites the same settings. It also replaces DiskMenu, MacStats' older
-# Disk-only form, if this Mac has it.
+# Sets up the menu bar stats group on a Mac, left-most in this order: CPU, GPU, RAM,
+# Temp and Disk, all drawn by MacStats, built here from macstats/. Safe to run again:
+# it rewrites the same settings. It also retires what earlier versions set up: DiskMenu
+# (MacStats' older Disk-only form) and the login agent that started the Stats app.
 #
 #   bash setup.sh              # install or repair
-#   bash setup.sh --uninstall  # remove MacStats and the login agents (Stats stays)
+#   bash setup.sh --uninstall  # remove MacStats and its login agent
 #
-# Stops with the command to run when Homebrew or the Xcode Command Line Tools are
-# missing; both need the user at a real terminal (a password or a dialog).
+# Stops with the command to run when the Xcode Command Line Tools are missing; they
+# need the user at a real terminal (a dialog).
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -18,7 +18,6 @@ MACSTATS_AGENT="$AGENTS/sh.csarko.macstats.plist"
 STATS_AGENT="$AGENTS/sh.csarko.stats-at-login.plist"
 OLD_APP="$HOME/Applications/DiskMenu.app"
 OLD_AGENT="$AGENTS/sh.csarko.diskmenu.plist"
-STATS=eu.exelban.Stats
 POS="NSStatusItem Preferred Position"
 
 say() { printf '%s\n' "$*"; }
@@ -31,8 +30,7 @@ stop_app() { # stop_app <process name>
   pkill -9 -x "$1" || true
 }
 
-# A login agent that starts an app only when it is not running. Stats treats being
-# opened again while it runs as a request for its Settings window.
+# A login agent that starts an app only when it is not running.
 login_agent() { # login_agent <plist path> <label> <shell command>
   cat > "$1" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -63,49 +61,34 @@ if [ "${1:-}" = --uninstall ]; then
   stop_app MacStats
   stop_app DiskMenu
   rm -rf "$APP" "$OLD_APP"
-  say "Removed MacStats and the login agents. Stats is still installed; its Disk and Sensors modules"
-  say "stay off until you turn them on in Stats' settings."
+  say "Removed MacStats and its login agent."
   exit 0
 fi
 
-# 1. System packages. Homebrew's installer also installs the Command Line Tools.
-BREW="$(command -v brew || true)"
-for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-  if [ -z "$BREW" ] && [ -x "$candidate" ]; then BREW="$candidate"; fi
-done
-if [ -z "$BREW" ]; then
-  fail "Homebrew is not installed. In Terminal (it asks for your password), run:
-  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"
-then follow its 'Next steps' to put brew on your PATH, and run this script again."
-fi
+# 1. System packages: only the Command Line Tools, for swiftc.
 if ! xcode-select -p >/dev/null 2>&1 || ! xcrun --find swiftc >/dev/null 2>&1; then
   fail "the Xcode Command Line Tools (swiftc, to build MacStats) are not installed. Run:
   xcode-select --install
 click Install in the dialog, wait for it to finish, and run this script again."
 fi
-if [ ! -d /Applications/Stats.app ]; then
-  say "Installing Stats (github.com/exelban/stats) with Homebrew..."
-  "$BREW" install --cask stats
-fi
 [ "$(uname -m)" = arm64 ] || say "Note: tested on Apple silicon; an Intel Mac's sensors come from the same catalog but are untested."
 
-# 2. Stats: CPU as a mini widget (small label over a value), and nothing else: MacStats
-# shows the GPU, memory, temperatures and the disk. Stats reads its settings only when
-# it starts, so stop it, write them, and start it again.
-stop_app Stats
-defaults write "$STATS" CPU_state -bool true
-defaults write "$STATS" CPU_widget -string mini
-for module in GPU RAM Sensors Disk Network Battery Bluetooth Clock; do
-  defaults write "$STATS" "${module}_state" -bool false
-done
-# Skip Stats' first-run window: its preset page overwrites the modules chosen above.
-defaults write "$STATS" setupProcess -bool true
-# Keep each item's place when a module is switched off and on again.
-defaults write "$STATS" keep_menubar_positions -bool true
+# 2. Earlier versions showed the CPU with the Stats app and started it at login. Stop
+# that agent and Stats, and turn Stats' CPU item off, so a Stats opened by hand does
+# not add a second CPU. Stats itself stays installed: removing an app is the user's
+# call. A Stats this script never set up is left alone.
+STATS_NOTE=""
+if [ -e "$STATS_AGENT" ]; then
+  say "Retiring the Stats app's CPU item (MacStats shows the CPU now)..."
+  remove_agent "$STATS_AGENT"
+  stop_app Stats
+  defaults write eu.exelban.Stats CPU_state -bool false
+  STATS_NOTE="Stats is no longer used. It is still installed: remove it with 'brew uninstall --cask stats', or drag it from Applications to the Trash."
+fi
 
 # 3. The order. macOS keeps each item's place as "NSStatusItem Preferred Position
 # <name>" in the owning app's settings; a larger number sits further left.
-defaults write "$STATS" "$POS CPU_mini" -float 1300
+defaults write sh.csarko.MacStats "$POS MacStatsCPU" -float 1300
 defaults write sh.csarko.MacStats "$POS MacStatsGPU" -float 1250
 defaults write sh.csarko.MacStats "$POS MacStatsRAM" -float 1200
 defaults write sh.csarko.MacStats "$POS MacStatsTemp" -float 1150
@@ -157,11 +140,8 @@ else
   codesign --force --sign - "$APP" 2>/dev/null
 fi
 
-# 5. Start both now and at every login. The Stats agent waits, so that Stats' own
-# "Start at login", if it is on, starts it first.
-open -a /Applications/Stats.app
+# 5. Start MacStats now and at every login.
 mkdir -p "$AGENTS"
-login_agent "$STATS_AGENT" sh.csarko.stats-at-login "sleep 5; pgrep -xq Stats || open -a /Applications/Stats.app"
 login_agent "$MACSTATS_AGENT" sh.csarko.macstats "pgrep -xq MacStats || open -a '$APP'"
 
 say "Waiting for the menu bar to settle..."
@@ -169,6 +149,6 @@ sleep 8
 say "Menu bar, left to right (x, width, owner, item):"
 xcrun swift "$DIR/menubar-order.swift" || say "(could not list the menu bar items)"
 say ""
-say "Expected first: CPU_mini, MacStatsGPU, MacStatsRAM, MacStatsTemp, MacStatsDisk (widths about 47, 43, 43, 45, 100)."
-say "On the first launch macOS may ask whether to open Stats, an app downloaded from the internet: click Open."
+say "Expected first: MacStatsCPU, MacStatsGPU, MacStatsRAM, MacStatsTemp, MacStatsDisk (widths about 50, 50, 50, 52, 100)."
 [ -z "$ZOOM_NOTE" ] || say "$ZOOM_NOTE"
+[ -z "$STATS_NOTE" ] || say "$STATS_NOTE"
