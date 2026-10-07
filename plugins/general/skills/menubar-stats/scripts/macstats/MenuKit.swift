@@ -601,6 +601,7 @@ class StatsPanel: NSWindow, NSWindowDelegate {
         // If macOS declines to bring MacStats forward (another app has focus), show the
         // panel on top anyway.
         orderFrontRegardless()
+        refreshToolTips()
         StatsPanel.openPanel = self
         outsideClicks = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
             [weak self] _ in self?.dismiss()
@@ -614,5 +615,19 @@ class StatsPanel: NSWindow, NSWindowDelegate {
         let size = content.fittingSize
         let top = frame.maxY
         setFrame(NSRect(x: frame.minX, y: top - size.height, width: size.width, height: size.height), display: true)
+        refreshToolTips()
+    }
+
+    /// AppKit registers a view's tooltip over the part of the view that is visible then.
+    /// A view nested in stack views (the CPU panel's chart legends) can be laid out before
+    /// its parents have a size, register over nothing, and never show its tooltip. Setting
+    /// every tooltip again once the panel is laid out registers each over its view as it is.
+    func refreshToolTips(in view: NSView? = nil) {
+        guard let view = view ?? contentView else { return }
+        if let tip = view.toolTip {
+            view.toolTip = nil
+            view.toolTip = tip
+        }
+        view.subviews.forEach { refreshToolTips(in: $0) }
     }
 }

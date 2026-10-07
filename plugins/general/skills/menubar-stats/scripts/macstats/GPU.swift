@@ -354,6 +354,8 @@ final class GPUPanel: StatsPanel {
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
         for row in seriesRows + [neuralRow, fpsRow, memoryRow] { body.addArrangedSubview(row) }
+        // A point of room between the chart's rows and the ones with their own graphs.
+        if let tiler = seriesRows.last { body.setCustomSpacing(1, after: tiler) }
         seriesRows[0].toolTip = twoLines("Time the GPU was busy with any work: the screen, games, video, compute.")
         seriesRows[1].toolTip = twoLines("Time spent colouring pixels, the last step in drawing each frame.")
         seriesRows[2].toolTip = twoLines("Time spent sorting each frame's shapes into screen tiles, before colouring them.")
