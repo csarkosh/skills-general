@@ -1,6 +1,6 @@
 ---
 name: menubar-stats
-description: Use when the user wants CPU, GPU, RAM, disk space or temperature shown in the macOS menu bar, is setting up a new Mac's menu bar, wants the disk's used and total space (not a percentage) or readable, de-duplicated temperatures in the menu bar, uses the Stats app (exelban/stats), or wants menu bar items reordered, grouped or kept left-most (another app's icon splitting them, an icon that must stay put).
+description: Use when the user wants CPU, GPU, RAM, disk space or temperature shown in the macOS menu bar, is setting up a new Mac's menu bar, wants the disk's free space or readable, de-duplicated temperatures in the menu bar, uses the Stats app (exelban/stats), or wants menu bar items reordered, grouped or kept left-most (another app's icon splitting them, an icon that must stay put).
 ---
 
 # Menu bar stats on a Mac
@@ -9,7 +9,7 @@ This skill reproduces one layout, left-most in the menu bar and in this order:
 
 | CPU | GPU | RAM | Temp | Disk |
 |---|---|---|---|---|
-| `CPU` over `12%` (usage) | `GPU` over `84%` (utilization) | `RAM` over `89%` (memory in use) | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk` over `215.9/245.1 GB` (used/total) |
+| `CPU` over `12%` (usage) | `GPU` over `84%` (utilization) | `RAM` over `89%` (memory in use) | `Temp` over `185°` (the hottest part; soft red while that part is red) | `Disk free` over `75 GB` (free space, whole GB, as Finder counts it) |
 
 All five come from **MacStats**, a small Swift app in `scripts/macstats/`, built on the Mac. It
 draws them like the Stats app's (github.com/exelban/stats) "mini" widgets, a small label over the
@@ -21,10 +21,10 @@ like Stats'. A panel opens at menu level, above every window whichever app is in
 one closes any other; a click anywhere outside it closes it (watching mouse clicks needs no
 permission). Right-click any item for Quit.
 
-CPU, GPU, RAM and Temp keep one width whatever they show (as wide as `100%`, or a three-digit
-temperature, in digits of one width), so the items beside them never shift as values change.
-Disk keeps the narrower ordinary digits: its value changes rarely, and the menu bar beside a
-notch has little room.
+Every item keeps one width whatever it shows (as wide as `100%`, a three-digit temperature, or
+`888 GB`, in digits of one width), so the items beside them never shift as values change. Disk
+shows only the free space, in whole GB, to stay narrow (about 50 pt, from about 90 for
+`170.0/245.1 GB`); its tooltip gives the exact free and total, and its panel the rest.
 
 Each feature is one file, so a later App Store edition can leave one out (the sandbox forbids the
 SMC reads and the disk-wide folder walk): `MenuKit.swift` (the item and the panel's look, shared),
@@ -87,7 +87,7 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
   name. On macOS 26 every owner is "Control Center" and the names are the ones in the table
   above. The group is unbroken when each x is the previous x plus its width. Without Screen
   Recording permission the names may be blank; tell the items apart by width (CPU, GPU and RAM
-  about 50, Temp about 52, Disk about 100, Zoom about 32). It prints nothing while an app is in
+  about 50, Temp about 52, Disk about 60, Zoom about 32; 10 less each with tighter spacing). It prints nothing while an app is in
   full screen.
 - `MacStats --render cpu|gpu|ram|temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
   draws that item to a PNG; open the image to look at it.

@@ -2,8 +2,8 @@
 // gauges, history, load, clock speeds, details and top processes in its panel),
 // GPU (utilization, with gauges, history, details and top GPU apps in its panel),
 // RAM (memory in use, with its history and top processes in its panel),
-// Temp (the hottest part, with every sensor in its panel) and Disk (used/total space,
-// with where it goes in its panel). Each item lives in its own file; MenuKit.swift
+// Temp (the hottest part, with every sensor in its panel) and Disk (free space,
+// with where the rest goes in its panel). Each item lives in its own file; MenuKit.swift
 // holds what they share.
 //
 //   swiftc -O *.swift -o MacStats           # setup.sh builds it into MacStats.app
@@ -30,6 +30,7 @@ import Cocoa
 /// a percentage, and a three-digit temperature in the Mac's unit.
 let percentWidest = "100%"
 let temperatureWidest = degrees(100)
+let diskWidest = "888 GB"
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cpu: MenuBarItem!
@@ -56,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         gpu = MenuBarItem(autosaveName: "MacStatsGPU", label: "GPU", widest: percentWidest) { [unowned self] in gpuPanel.toggle(under: $0) }
         ram = MenuBarItem(autosaveName: "MacStatsRAM", label: "RAM", widest: percentWidest) { [unowned self] in ramPanel.toggle(under: $0) }
         temp = MenuBarItem(autosaveName: "MacStatsTemp", label: "Temp", widest: temperatureWidest) { [unowned self] in tempPanel.toggle(under: $0) }
-        disk = MenuBarItem(autosaveName: "MacStatsDisk", label: "Disk") { [unowned self] in diskPanel.toggle(under: $0) }
+        disk = MenuBarItem(autosaveName: "MacStatsDisk", label: "Disk free", widest: diskWidest) { [unowned self] in diskPanel.toggle(under: $0) }
         refresh()
         // Every second, like Stats' CPU and GPU.
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.refresh() }
@@ -136,7 +137,7 @@ if arguments.contains("--render") {
         exit(renderMiniView(label: "Temp", value: text.value, widest: temperatureWidest, alert: text.alert || arguments.contains("--alert"), to: path))
     case "disk":
         guard let text = diskItemText(DiskSampler()) else { fail("Could not read the startup disk's capacity.") }
-        exit(renderMiniView(label: "Disk", value: text.value, to: path))
+        exit(renderMiniView(label: "Disk free", value: text.value, widest: diskWidest, to: path))
     default: fail("usage: MacStats --render cpu|gpu|ram|temp|disk <out.png>")
     }
 }

@@ -1,5 +1,5 @@
-// The Disk menu bar item: the startup disk's used and total space as "Disk" over
-// "215.9/245.1 GB", and a panel listing where the space goes: the APFS volumes as
+// The Disk menu bar item: the startup disk's free space as "Disk free" over "75 GB",
+// and a panel listing where the space goes: the APFS volumes as
 // coloured rows and a line bar like Stats' RAM panel, then my apps / files broken
 // down into folders three levels deep. Private folders (Desktop, Documents,
 // Downloads, Music, Movies, other apps' data, Mail, Photos and the like) are never
@@ -32,12 +32,13 @@ final class DiskSampler {
     }
 }
 
-/// What the Disk item shows: used/total, and the free space for its tooltip.
+/// What the Disk item shows: the free space in whole GB (as Finder counts it, purgeable
+/// space included), and the exact figures for its tooltip.
 func diskItemText(_ sampler: DiskSampler) -> (value: String, tooltip: String)? {
     guard let figures = sampler.sample() else { return nil }
     let gb = { (bytes: Int64) in String(format: "%.1f", Double(bytes) / 1_000_000_000) }
-    return ("\(gb(figures.total - figures.free))/\(gb(figures.total)) GB",
-            "Free: \(gb(figures.free)) GB. Click for where the space goes.")
+    return ("\(Int((Double(figures.free) / 1_000_000_000).rounded())) GB",
+            "\(gb(figures.free)) GB free of \(gb(figures.total)) GB. Click for where the space goes.")
 }
 
 // MARK: - The five spaces

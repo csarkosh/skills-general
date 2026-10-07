@@ -186,7 +186,7 @@ say "Menu bar, left to right (x, width, owner, item):"
 ORDER="$(xcrun swift "$DIR/menubar-order.swift" 2>/dev/null || true)"
 [ -n "$ORDER" ] && say "$ORDER" || say "(could not list the menu bar items)"
 say ""
-say "Expected first: MacStatsCPU, MacStatsGPU, MacStatsRAM, MacStatsTemp, MacStatsDisk (widths about 50, 50, 50, 52, 100, or 10 less each with tighter spacing)."
+say "Expected first: MacStatsCPU, MacStatsGPU, MacStatsRAM, MacStatsTemp, MacStatsDisk (widths about 50, 50, 50, 52, 60, or 10 less each with tighter spacing)."
 # The names show only with Screen Recording permission; count only when they do.
 if printf '%s\n' "$ORDER" | grep -q MacStats; then
   SHOWN="$(printf '%s\n' "$ORDER" | grep -c ' MacStats' || true)"

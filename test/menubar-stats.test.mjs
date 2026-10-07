@@ -175,9 +175,9 @@ describe('menubar-stats', () => {
       for (let i = 1; i < processes.length; i++) assert.ok(processes[i - 1] >= processes[i], 'biggest first');
     });
 
-    it('renders the Disk item as used/total GB', (t) => {
+    it('renders the Disk item as its free space in whole GB', (t) => {
       const png = join(tempDir(t, 'macstats-png'), 'disk.png');
-      assert.match(runOk(binary, ['--render', 'disk', png]).stdout, /^\d+\.\d\/\d+\.\d GB\n$/);
+      assert.match(runOk(binary, ['--render', 'disk', png]).stdout, /^\d+ GB\n$/);
       isPng(png);
     });
 
