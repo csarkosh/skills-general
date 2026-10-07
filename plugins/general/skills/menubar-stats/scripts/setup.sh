@@ -5,6 +5,7 @@
 # (MacStats' older Disk-only form) and the login agent that started the Stats app.
 #
 #   bash setup.sh              # install or repair
+#   bash setup.sh --tight-spacing  # also narrow the gap around every menu bar icon
 #   bash setup.sh --uninstall  # remove MacStats and its login agent
 #
 # Stops with the command to run when the Xcode Command Line Tools are missing; they
@@ -56,6 +57,9 @@ remove_agent() { # remove_agent <plist path>
   rm -f "$1"
 }
 
+TIGHT=0
+[ "${1:-}" = --tight-spacing ] && TIGHT=1
+
 if [ "${1:-}" = --uninstall ]; then
   for agent in "$MACSTATS_AGENT" "$OLD_AGENT" "$STATS_AGENT"; do remove_agent "$agent"; done
   stop_app MacStats
@@ -84,6 +88,17 @@ if [ -e "$STATS_AGENT" ]; then
   stop_app Stats
   defaults write eu.exelban.Stats CPU_state -bool false
   STATS_NOTE="Stats is no longer used. It is still installed: remove it with 'brew uninstall --cask stats', or drag it from Applications to the Trash."
+fi
+
+# 2b. Only with --tight-spacing: narrow the gap macOS leaves around every menu bar icon,
+# for every app (a hidden system setting), so the group fits beside a MacBook's notch,
+# where macOS hides whatever does not fit without a word. Apps read it when they start;
+# the system's own icons once the user logs out and in.
+SPACING_NOTE=""
+if [ "$TIGHT" = 1 ]; then
+  defaults -currentHost write -globalDomain NSStatusItemSpacing -int 6
+  defaults -currentHost write -globalDomain NSStatusItemSelectionPadding -int 6
+  SPACING_NOTE="Menu bar icons sit closer together now; log out and back in for the system's own icons to follow. To undo it: defaults -currentHost delete -globalDomain NSStatusItemSpacing; defaults -currentHost delete -globalDomain NSStatusItemSelectionPadding"
 fi
 
 # 3. The order. macOS keeps each item's place as "NSStatusItem Preferred Position
@@ -168,8 +183,18 @@ login_agent "$MACSTATS_AGENT" sh.csarko.macstats "pgrep -xq MacStats || open -a 
 say "Waiting for the menu bar to settle..."
 sleep 8
 say "Menu bar, left to right (x, width, owner, item):"
-xcrun swift "$DIR/menubar-order.swift" || say "(could not list the menu bar items)"
+ORDER="$(xcrun swift "$DIR/menubar-order.swift" 2>/dev/null || true)"
+[ -n "$ORDER" ] && say "$ORDER" || say "(could not list the menu bar items)"
 say ""
-say "Expected first: MacStatsCPU, MacStatsGPU, MacStatsRAM, MacStatsTemp, MacStatsDisk (widths about 50, 50, 50, 52, 100)."
+say "Expected first: MacStatsCPU, MacStatsGPU, MacStatsRAM, MacStatsTemp, MacStatsDisk (widths about 50, 50, 50, 52, 100, or 10 less each with tighter spacing)."
+# The names show only with Screen Recording permission; count only when they do.
+if printf '%s\n' "$ORDER" | grep -q MacStats; then
+  SHOWN="$(printf '%s\n' "$ORDER" | grep -c ' MacStats' || true)"
+  if [ "$SHOWN" -lt 5 ]; then
+    say "Only $SHOWN of MacStats' 5 items fit: beside a MacBook's notch macOS hides what does not fit."
+    [ "$TIGHT" = 1 ] || say "Run 'bash setup.sh --tight-spacing' to narrow the gap around every icon, or hide icons you don't need in System Settings > Menu Bar."
+  fi
+fi
+[ -z "$SPACING_NOTE" ] || say "$SPACING_NOTE"
 [ -z "$ZOOM_NOTE" ] || say "$ZOOM_NOTE"
 [ -z "$STATS_NOTE" ] || say "$STATS_NOTE"

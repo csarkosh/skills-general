@@ -47,6 +47,12 @@ describe('menubar-stats', () => {
     for (let i = 1; i < order.length; i++) assert.ok(order[i - 1] > order[i], 'a larger number sits further left');
   });
 
+  it('offers tighter icon spacing as an option, never by default, and says how to undo it', () => {
+    assert.match(setup, /if \[ "\$TIGHT" = 1 \]; then\n\s+defaults -currentHost write -globalDomain NSStatusItemSpacing -int 6/,
+      'writes the spacing only with --tight-spacing');
+    assert.match(setup, /defaults -currentHost delete -globalDomain NSStatusItemSpacing/, 'says how to undo it');
+  });
+
   it('typechecks the menu bar order script', () => {
     runOk('xcrun', ['swiftc', '-typecheck', join(SCRIPTS, 'menubar-order.swift')]);
   });

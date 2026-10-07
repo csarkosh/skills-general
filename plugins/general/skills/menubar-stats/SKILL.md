@@ -41,6 +41,7 @@ setting names, the order and the traps below. Change the layout by editing the s
 
 ```bash
 bash <this skill's directory>/scripts/setup.sh              # install, or repair; safe to rerun
+bash <this skill's directory>/scripts/setup.sh --tight-spacing  # the same, and narrow the gap around every menu bar icon
 bash <this skill's directory>/scripts/setup.sh --uninstall  # remove MacStats and its login agents
 ```
 
@@ -237,5 +238,5 @@ To check that a change prompts for nothing, run the installed app as itself (`op
 |---|---|
 | `defaults write` of a place while the app runs | An app reads its items' places only when it starts; stop it, write, start it |
 | Comparing with `df` | MacStats counts purgeable space as free and uses decimal GB, so it reads higher than `df -h` |
-| Too many icons on a notched MacBook | Beside the notch there is about 645 pt; macOS hides the left-most items first, without a word, so this group is the first to vanish (and the order script stops listing a hidden item); turn off icons the user doesn't need |
+| Too many icons on a notched MacBook | Beside the notch there is about 645 pt, and macOS keeps a margin from it; it hides an item that does not fit without a word (not always the left-most: a Focus icon appearing, or the battery showing its percentage, hid the GPU item), and the order script stops listing it. `setup.sh --tight-spacing` narrows the gap around every icon, for every app (`NSStatusItemSpacing` and `NSStatusItemSelectionPadding` set to 6 under `-currentHost`), which frees about 10 pt an icon: apps take it when they start, the system's icons after logging out and in. Undo it with `defaults -currentHost delete -globalDomain` on both keys. Otherwise, hide icons the user doesn't need. The script warns when fewer than five MacStats items show |
 | An item never appears on macOS 26 | Check System Settings › Menu Bar › Allow in the Menu Bar for that app |
