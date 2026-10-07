@@ -136,11 +136,11 @@ Two gauges like Temp's: utilization on Stats' own zones (normal below 60%, busy 
 from 80%) and the GPU's temperature on the chip's limits. **Usage**: a three-minute chart with
 utilization as a blue area and Renderer and Tiler as orange and pink lines (on Apple silicon the
 three move together), then those three rows in the same colours. 4 pt below them, a second group, each row with a
-small three-minute graph, lined up in one column: Memory in teal, the GPU's memory in use as a
-share of the most macOS lets it use (Metal's recommended working set, 11.84 GB of a 16 GB Mac),
-with `0.49 / 11.84 GB` under it and what it holds set aside in its tooltip; Framerate in green
-(`62 Hz`), up to the fastest any display redraws (60, or 120 with ProMotion); ML engine in purple,
-0 to 100%. **Top GPU apps**: each
+small three-minute graph, lined up in one column: Framerate in green (`62 Hz`), up to the fastest
+any display redraws (60, or 120 with ProMotion); ML engine in purple, 0 to 100%; and last Memory in
+teal, the GPU's memory in use as a share of the most macOS lets it use (Metal's recommended working
+set, 11.84 GB of a 16 GB Mac), with `0.49 / 11.84 GB` under it and what it holds set aside in its
+tooltip. **Top GPU apps**: each
 app's share of GPU time over the last two seconds, as Activity Monitor's "% GPU" counts it,
 from the GPU time macOS keeps per app in the registry. Utilization, memory, model and cores come
 from the accelerator's registry entry; ML engine (its power against its peak) and Framerate (the

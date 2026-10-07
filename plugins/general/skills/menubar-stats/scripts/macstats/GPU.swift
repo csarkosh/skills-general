@@ -1,6 +1,6 @@
 // The GPU menu bar item: "GPU" over its utilization, and a panel with two gauges
 // (utilization, and GPU temperature on the chip's limits), Usage (a history chart
-// and the GPU's figures, then Memory, Framerate and ML engine each with a small graph) and Top GPU
+// and the GPU's figures, then Framerate, ML engine and Memory each with a small graph) and Top GPU
 // apps. The figures are
 // the ones the Stats app reads (Modules/GPU/reader.swift, MIT; see LICENSE-stats.txt
 // beside this file): the accelerator's PerformanceStatistics, and on Apple silicon
@@ -356,10 +356,12 @@ final class GPUPanel: StatsPanel {
         chart.history = history
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
-        // Two groups: the chart's rows, then the rows with their own small graphs (Memory
-        // with its GB line under it, Framerate, ML engine), 4 pt apart.
+        // Two groups: the chart's rows, then the rows with their own small graphs
+        // (Framerate, ML engine, and Memory with its GB line under it), 4 pt apart.
         for row in seriesRows { body.addArrangedSubview(row) }
         if let tiler = seriesRows.last { body.setCustomSpacing(4, after: tiler) }
+        body.addArrangedSubview(fpsRow)
+        body.addArrangedSubview(neuralRow)
         body.addArrangedSubview(memoryRow)
         seriesRows[0].hoverTip = twoLines("Time the GPU was busy with any work: the screen, games, video, compute.")
         seriesRows[1].hoverTip = twoLines("Time spent colouring pixels, the last step in drawing each frame.")
@@ -377,9 +379,7 @@ final class GPUPanel: StatsPanel {
         memoryDetail.translatesAutoresizingMaskIntoConstraints = false
         memoryDetail.widthAnchor.constraint(equalToConstant: Panel.width).isActive = true
         body.addArrangedSubview(memoryDetail)
-        body.addArrangedSubview(fpsRow)
-        body.addArrangedSubview(neuralRow)
-        body.setCustomSpacing(2, after: neuralRow)
+        body.setCustomSpacing(2, after: memoryDetail)
 
         body.addArrangedSubview(separatorView("Top GPU apps"))
         let heading = ProcessRow()
