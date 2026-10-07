@@ -117,6 +117,20 @@ describe('menubar-stats', () => {
       assert.match(setup, /CFBundleIconFile<\/key><string>AppIcon</, 'setup.sh names the icon in Info.plist');
     });
 
+    it('explains every legend key in every panel with a tooltip', () => {
+      const lines = runOk(binary, ['--legend-tips'], { timeout: 60_000 }).stdout.trim().split('\n').map((line) => line.split('\t'));
+      const keys = (panel) => lines.filter(([name]) => name === panel).map(([, key]) => key);
+      assert.deepEqual(keys('CPU').slice(0, 4), ['System', 'User', 'Idle', 'Load']);
+      assert.deepEqual(keys('GPU'), ['Utilization', 'Renderer', 'Tiler']);
+      assert.deepEqual(keys('RAM'), ['App', 'Wired', 'Compressed', 'Free', 'Swap']);
+      assert.deepEqual(keys('Disk').sort(),
+        ['Free', 'Purgeable', 'macOS system', 'my apps / files', 'other', 'recovery', 'swap', 'update/boot']);
+      assert.ok(keys('Temp').length > 0, 'the Temp panel has rows');
+      for (const [panel, key, tip] of lines) {
+        assert.ok((tip ?? '').length >= 60, `${panel} › ${key} explains itself (${JSON.stringify(tip)})`);
+      }
+    });
+
     it('renders the GPU item as its utilization', (t) => {
       const png = join(tempDir(t, 'macstats-png'), 'gpu.png');
       assert.match(runOk(binary, ['--render', 'gpu', png]).stdout, /^\d+%\n$/);

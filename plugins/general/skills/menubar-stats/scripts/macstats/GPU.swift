@@ -343,8 +343,12 @@ final class GPUPanel: StatsPanel {
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
         for row in seriesRows + [neuralRow, fpsRow, memoryRow] { body.addArrangedSubview(row) }
-        seriesRows[1].toolTip = "The share of time the GPU spent drawing pixels."
-        seriesRows[2].toolTip = "The share of time the GPU spent sorting geometry into tiles, before drawing."
+        seriesRows[0].toolTip = "The share of time the GPU was busy with any work: drawing the screen and windows, "
+            + "games, video, and apps that compute on it. Renderer and Tiler are two of its stages."
+        seriesRows[1].toolTip = "The share of time the GPU spent rendering: colouring each pixel (shading, textures, "
+            + "blending), the last step in drawing a frame. Most of a frame's work is here."
+        seriesRows[2].toolTip = "The share of time the GPU spent tiling: sorting each frame's shapes into the small "
+            + "squares of screen that Apple's GPUs draw one at a time, the step before rendering."
         neuralRow.toolTip = "How busy the ML engine, Apple's machine-learning cores, is: its power against its peak, as Stats reads it."
         fpsRow.toolTip = "Frames the displays showed in the last second."
         memorySparkline.capacity = history.capacity

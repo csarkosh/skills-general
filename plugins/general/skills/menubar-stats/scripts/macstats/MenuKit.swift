@@ -209,8 +209,12 @@ final class PanelRow: NSView {
     let label = NSTextField(labelWithString: "")
     let value = NSTextField(labelWithString: "")
     private let block = NSView()
+    /// A row with a coloured square is a legend key: it names a colour in a chart or bar
+    /// (or, in Temp, a heat), and its tooltip says what that is.
+    let isKey: Bool
 
     init(_ title: String, color: NSColor? = nil) {
+        isKey = color != nil
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         label.stringValue = title
@@ -252,6 +256,47 @@ final class PanelRow: NSView {
     func setColor(_ color: NSColor) {
         block.layer?.backgroundColor = color.cgColor
     }
+}
+
+/// One line of a small chart's legend, as wide as the chart above it: a coloured dot, a
+/// name and a value, in small type.
+final class LegendLine: NSView {
+    let title: String
+    let value = NSTextField(labelWithString: "")
+
+    init(_ title: String, color: NSColor, width: CGFloat) {
+        self.title = title
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        let dot = NSView()
+        dot.wantsLayer = true
+        dot.layer?.backgroundColor = color.cgColor
+        dot.layer?.cornerRadius = 2
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 9)
+        label.textColor = .secondaryLabelColor
+        value.font = .systemFont(ofSize: 9)
+        value.alignment = .right
+        for view in [dot, label, value] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: width),
+            heightAnchor.constraint(equalToConstant: 13),
+            dot.widthAnchor.constraint(equalToConstant: 7),
+            dot.heightAnchor.constraint(equalToConstant: 7),
+            dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            dot.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 4),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            value.trailingAnchor.constraint(equalTo: trailingAnchor),
+            value.centerYAnchor.constraint(equalTo: centerYAnchor),
+            value.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 5),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 /// A line bar split into coloured parts, drawn like Stats' horizontal bar chart: 10

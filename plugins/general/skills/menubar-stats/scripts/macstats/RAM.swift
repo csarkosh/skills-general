@@ -270,6 +270,17 @@ final class RAMPanel: StatsPanel {
         body.addArrangedSubview(bar)
         for row in partRows { body.addArrangedSubview(row) }
         // Swap is always last: it is not part of the memory above.
+        let tips = [
+            "App": "Memory apps are using for their own data: open documents, web pages, images, undo history. "
+                + "When memory runs short, macOS compresses some of it or moves it to swap.",
+            "Wired": "Memory macOS itself needs and can never compress or move to disk: the kernel, drivers, and "
+                + "buffers the GPU and other hardware read directly. It grows with displays and graphics work.",
+            "Compressed": "App memory macOS has packed down to make room, instead of writing it to disk. Reading it "
+                + "back costs a little CPU but is far faster than swap.",
+            "Free": "Memory apps and macOS are not holding: unused memory plus file caches macOS can drop the moment "
+                + "something needs the space. Little free memory is normal; macOS keeps memory working as cache.",
+        ]
+        for (row, part) in zip(partRows, memoryParts) { row.toolTip = tips[part.title] }
         body.addArrangedSubview(swapRow)
         swapRow.toolTip = "Disk space macOS uses as overflow when memory runs short. It has no fixed maximum: "
             + "macOS adds 1 GB swap files as it needs them while the disk has room. The small graph compares it "

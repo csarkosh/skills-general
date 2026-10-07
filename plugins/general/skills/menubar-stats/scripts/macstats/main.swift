@@ -12,6 +12,7 @@
 //   MacStats --render cpu|gpu|ram|temp|disk out.png  # draws that menu bar item to a PNG and exits
 //                                           # (with --alert, Temp as it looks when hot)
 //   MacStats --write-icon <dir>.iconset     # draws the app icon at iconutil's sizes and exits
+//   MacStats --legend-tips                  # prints every panel's legend keys and their tooltips
 //   MacStats --cpu                          # prints the CPU panel and exits
 //   MacStats --gpu                          # prints the GPU panel and exits
 //   MacStats --memory                       # prints the RAM panel and exits
@@ -138,6 +139,35 @@ if arguments.contains("--render") {
         exit(renderMiniView(label: "Disk", value: text.value, to: path))
     default: fail("usage: MacStats --render cpu|gpu|ram|temp|disk <out.png>")
     }
+}
+/// Every panel's legend keys (rows with a coloured square, and chart legend lines) with
+/// their tooltips, as "<panel>\t<key>\t<tooltip>", so a test can see none lacks one.
+func legendTipsReport() -> Int32 {
+    _ = NSApplication.shared
+    let reader = SensorReader()
+    let temp = TempPanel(reader: reader)
+    temp.update(reader.read())
+    let panels: [(String, StatsPanel)] = [
+        ("CPU", CPUPanel(history: CPUHistory(), reader: reader)), ("GPU", GPUPanel(history: GPUHistory(), reader: reader)),
+        ("RAM", RAMPanel(history: MemoryHistory())), ("Temp", temp), ("Disk", DiskPanel()),
+    ]
+    func keys(in view: NSView) -> [(String, String)] {
+        if let row = view as? PanelRow, row.isKey {
+            return [(row.label.stringValue.trimmingCharacters(in: CharacterSet(charactersIn: ":")), row.toolTip ?? "")]
+        }
+        if let line = view as? LegendLine { return [(line.title, line.toolTip ?? "")] }
+        return view.subviews.flatMap(keys)
+    }
+    for (name, panel) in panels {
+        for (key, tip) in keys(in: panel.contentView!) {
+            print(name + "\t" + key + "\t" + tip.replacingOccurrences(of: "\n", with: " "))
+        }
+    }
+    return 0
+}
+
+if arguments.contains("--legend-tips") {
+    exit(legendTipsReport())
 }
 if let directory = argument(after: "--write-icon") {
     exit(writeIconSet(to: directory))

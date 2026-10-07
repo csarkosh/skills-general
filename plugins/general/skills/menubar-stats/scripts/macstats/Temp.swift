@@ -30,6 +30,35 @@ let ssdLimits = HeatLimits(warm: 50, hot: 70)
 let otherLimits = HeatLimits(warm: 60, hot: 80)
 
 /// The limits for a temperature row, by its name.
+/// What a Temperature row's part is, for its tooltip; nil for a part this list does not
+/// know. The first matching rule wins, so the specific ones come first.
+func partDescription(_ name: String) -> String? {
+    let lower = name.lowercased()
+    let rules: [(match: (String) -> Bool, text: String)] = [
+        ({ $0.contains("efficiency core") }, "The CPU's efficiency cores: slower, low-power cores that run background work."),
+        ({ $0.contains("performance core") }, "The CPU's performance cores: the fast cores that run the work you are waiting on."),
+        ({ $0.contains("super core") }, "The CPU's super cores: its fastest cores, for the most demanding work."),
+        ({ $0.contains("heatpipe") || $0.contains("heatsink") },
+         "A heat pipe or heat sink: the metal that carries heat away from the chips."),
+        ({ $0.hasPrefix("gpu") }, "The GPU, the graphics processor: it draws the screen and runs games, video and graphics work."),
+        ({ $0.hasPrefix("cpu") }, "The CPU, the processor that runs macOS and apps."),
+        ({ $0.contains("engine") },
+         "The machine-learning engine: the chip's cores for AI work such as photo search, dictation and Live Text."),
+        ({ $0.contains("memory") }, "The memory (RAM), or the board beside it."),
+        ({ $0.contains("battery") },
+         "The battery. Heat wears batteries out, so it is kept cooler than the chips: Apple's range is up to \(degrees(35))."),
+        ({ $0.contains("ssd") || $0.contains("nand") || $0.hasPrefix("disk") }, "The SSD, the Mac's built-in storage."),
+        ({ $0.contains("wi-fi") || $0.contains("airport") }, "The wireless chip, for Wi-Fi and Bluetooth."),
+        ({ $0.contains("thunderbolt") }, "The Thunderbolt controller, behind the USB-C ports."),
+        ({ $0.contains("image signal") }, "The image signal processor, which handles the camera."),
+        ({ $0.contains("display") }, "The display."),
+        ({ $0.contains("power") }, "The power management chips, which feed power from the battery and charger to the rest of the Mac."),
+        ({ $0.contains("soc") || $0.contains("mainboard") || $0.contains("northbridge") || $0.contains("thermal zone") },
+         "The main board, around the chips."),
+    ]
+    return rules.first { $0.match(lower) }?.text
+}
+
 func heatLimits(for name: String) -> HeatLimits {
     let lower = name.lowercased()
     if lower.contains("battery") { return batteryLimits }
@@ -275,7 +304,8 @@ final class TempPanel: StatsPanel {
             let limits = heatLimits(for: group.name)
             let sensors = group.count == 1 ? ""
                 : "\(group.count) sensors, \(degrees(group.coolest)) to \(degrees(group.hottest)), weighted toward the hottest. "
-            row.toolTip = sensors + "Yellow from \(degrees(limits.warm)), red from \(degrees(limits.hot))."
+            row.toolTip = (partDescription(group.name).map { $0 + "\n" } ?? "") + sensors
+                + "Yellow from \(degrees(limits.warm)), red from \(degrees(limits.hot))."
         }
         temperatureList.setViews(groups.compactMap { temperatureRows[$0.name] }, in: .top)
         // Power rows come and go with the charger.

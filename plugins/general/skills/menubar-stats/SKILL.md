@@ -92,6 +92,11 @@ lacks. Use these instead, then ask the user to glance at the menu bar:
 - `MacStats --render cpu|gpu|ram|temp|disk out.png` (the binary is `~/Applications/MacStats.app/Contents/MacOS/MacStats`)
   draws that item to a PNG; open the image to look at it.
 
+Every legend key (a row with a coloured square, or a chart's legend line) has a tooltip that says
+what it is, for someone hovering to find out: what System or Wired memory is, what the recovery
+volume holds, what a Temp row's part does. `MacStats --legend-tips` lists them all, and a test fails
+a key without one.
+
 From a terminal, `MacStats --cpu` prints the CPU panel, `--gpu` the GPU panel, `--memory` the RAM panel, `--sensors` the Temp panel, `--weigh 49.8 53.0 …` prints those
 temperatures' weighted value, `--spaces` the disk's five volumes, `--legend` the Disk panel's
 Spaces rows in order, `--report` its folders (add a folder to list only it, and `--min-mb N` to

@@ -315,6 +315,18 @@ final class DiskPanel: StatsPanel, NSOutlineViewDataSource, NSOutlineViewDelegat
         spaceList.setViews(spaceLegend.compactMap { spaceRows[$0.title] }, in: .top)
         body.addArrangedSubview(spaceList)
         let tips = [
+            "my apps / files": "Everything on the Data volume: your apps, your files, your settings, and the caches "
+                + "and data apps keep. The list below breaks it down by folder.",
+            "macOS system": "The macOS system itself, on a sealed, read-only volume. It is the same size on every Mac "
+                + "with this version of macOS, and only a macOS update changes it.",
+            "update/boot": "What the Mac needs to start up (the Preboot volume), and macOS updates downloaded and "
+                + "waiting to install (the Update volume).",
+            "recovery": "macOS Recovery: a small separate system the Mac starts when you hold the power button at "
+                + "start-up (Command-R on an Intel Mac), to repair the disk or reinstall macOS.",
+            "swap": "The VM volume: memory written to disk when RAM runs short (swap), and the image of memory the "
+                + "Mac saves when it sleeps. It grows and shrinks on its own.",
+            "Free": "Space nothing is using, left for new files. The menu bar also counts Purgeable as free, as "
+                + "Finder does.",
             "other": "Space APFS keeps for its own bookkeeping, and any volume not listed above.",
             "Purgeable": "Part of my apps / files that macOS frees on its own when it needs room: caches, "
                 + "iCloud copies, snapshots. Counted as used here and as free in the menu bar, as Finder does.",

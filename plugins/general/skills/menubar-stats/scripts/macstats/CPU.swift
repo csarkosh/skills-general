@@ -15,6 +15,7 @@ struct CoreType {
     let short: String  // "E", for the frequency chart's key
     let channel: String  // its IOReport channels' prefix, "ECPU"
     let color: NSColor  // Stats' colour for it
+    let about: String  // what these cores are, for the legend's tooltip
     let cores: [Int]
     let steps: [Double]
 }
@@ -77,14 +78,20 @@ let coreTypes: [CoreType] = {
         }
     }
 
-    let efficiency = ("E", "Efficiency cores", "E", "ECPU", NSColor.systemTeal, "voltage-states1-sram")
-    let kinds: [(letter: String, name: String, short: String, channel: String, color: NSColor, table: String)] = isM5OrNewer
-        ? [efficiency, ("M", "Performance cores", "P", "MCPU", .systemIndigo, "voltage-states22-sram"),
-           ("P", "Super cores", "S", "PCPU", .systemOrange, "voltage-states5-sram")]
-        : [efficiency, ("P", "Performance cores", "P", "PCPU", .systemIndigo, "voltage-states5-sram")]
+    let efficiency = ("E", "Efficiency cores", "E", "ECPU", NSColor.systemTeal, "voltage-states1-sram",
+                      "slower, low-power cores. macOS runs background work on them (mail, backups, indexing), "
+                      + "which keeps the Mac cool and the battery lasting.")
+    let performance = "fast cores. macOS gives them the work you are waiting on: opening apps, "
+        + "exporting, compiling, games."
+    let kinds: [(letter: String, name: String, short: String, channel: String, color: NSColor, table: String, about: String)] =
+        isM5OrNewer
+        ? [efficiency, ("M", "Performance cores", "P", "MCPU", .systemIndigo, "voltage-states22-sram", performance),
+           ("P", "Super cores", "S", "PCPU", .systemOrange, "voltage-states5-sram",
+            "fastest cores, for the most demanding work.")]
+        : [efficiency, ("P", "Performance cores", "P", "PCPU", .systemIndigo, "voltage-states5-sram", performance)]
     return kinds.compactMap { kind in
         guard let cores = clusters[kind.letter] else { return nil }
-        return CoreType(name: kind.name, short: kind.short, channel: kind.channel, color: kind.color,
+        return CoreType(name: kind.name, short: kind.short, channel: kind.channel, color: kind.color, about: kind.about,
                         cores: cores.sorted(), steps: steps(kind.table))
     }
 }()
@@ -409,45 +416,6 @@ final class MiniChart: NSView {
 /// The load chart's colour.
 let loadColor = NSColor.systemPink
 
-/// One line of a small chart's legend, as wide as the chart above it: a coloured dot, a
-/// name and a value, in small type.
-final class LegendLine: NSView {
-    let value = NSTextField(labelWithString: "")
-
-    init(_ title: String, color: NSColor, width: CGFloat) {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        let dot = NSView()
-        dot.wantsLayer = true
-        dot.layer?.backgroundColor = color.cgColor
-        dot.layer?.cornerRadius = 2
-        let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 9)
-        label.textColor = .secondaryLabelColor
-        value.font = .systemFont(ofSize: 9)
-        value.alignment = .right
-        for view in [dot, label, value] {
-            view.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(view)
-        }
-        NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: width),
-            heightAnchor.constraint(equalToConstant: 13),
-            dot.widthAnchor.constraint(equalToConstant: 7),
-            dot.heightAnchor.constraint(equalToConstant: 7),
-            dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            dot.centerYAnchor.constraint(equalTo: centerYAnchor),
-            label.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 4),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            value.trailingAnchor.constraint(equalTo: trailingAnchor),
-            value.centerYAnchor.constraint(equalTo: centerYAnchor),
-            value.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 5),
-        ])
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-}
-
 /// What the CPU item shows: its usage.
 func cpuItemText(_ sample: CPUSample) -> (value: String, tooltip: String) {
     (formatPercent(sample.usage),
@@ -504,8 +472,13 @@ final class CPUPanel: StatsPanel {
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
         for row in partRows + [idleRow] { body.addArrangedSubview(row) }
-        partRows[0].toolTip = "Time the CPU spent running macOS itself."
-        partRows[1].toolTip = "Time the CPU spent running apps."
+        partRows[0].toolTip = "The share of time the CPU spent running macOS itself: the kernel and drivers reading "
+            + "and writing files, moving network traffic, managing memory and talking to hardware on apps' behalf. "
+            + "It is usually small; a large share often means heavy disk or network work."
+        partRows[1].toolTip = "The share of time the CPU spent running apps and the background programs that come "
+            + "with them: everything outside macOS's core. Busy apps raise it; Top processes below shows which."
+        idleRow.toolTip = "The share of time the CPU had nothing to run. Idle cores sleep, so a high Idle means less "
+            + "heat and a longer-lasting battery. System, User and Idle add up to 100%."
 
         body.addArrangedSubview(separatorView("Load & frequency"))
         let column = { (chart: MiniChart, legend: [LegendLine]) -> NSStackView in
@@ -532,12 +505,14 @@ final class CPUPanel: StatsPanel {
             + "every core was wanted; above it, tasks were queuing."
         frequencyChart.toolTip = "Each core type's clock speed over the last three minutes, against the fastest it can go: "
             + "a line at the top means those cores ran flat out."
-        loadLegend.toolTip = "How much of the CPU's \(cores) cores the work wanted over the last minute: the load average "
-            + "(the tasks running on a core or waiting for one) as a share of the cores. At 100% every core was wanted; "
-            + "above it, tasks were queuing."
+        loadLegend.toolTip = "Core load: how much work wanted the CPU's \(cores) cores over the last minute. It counts "
+            + "the tasks running on a core or waiting for one (the load average) as a share of the cores. Under 100% "
+            + "some cores were free; at 100% every core had work; above it, tasks had to wait their turn, and the "
+            + "Mac can feel slow."
         for (legend, type) in zip(speedLegends, coreTypes) {
-            legend.toolTip = "How fast the \(type.cores.count) \(type.name.lowercased()) ran over the last second, on average, "
-                + "and the fastest they can go."
+            legend.toolTip = "\(type.name): the CPU's \(type.cores.count) \(type.about) Shown: how fast they ran over "
+                + "the last second, on average, and the fastest they can go. macOS slows cores down when there is "
+                + "little to do, to save power, so a low speed is normal when the Mac is quiet."
         }
 
         body.addArrangedSubview(separatorView("Top processes"))
