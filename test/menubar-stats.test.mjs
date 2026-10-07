@@ -72,14 +72,13 @@ describe('menubar-stats', () => {
       assert.equal(width(png), width(ram), 'the CPU and RAM items are as wide, whatever their values');
     });
 
-    it('reads the CPU: System, User and Idle add up, each core type, load, clock speeds, uptime and processes', () => {
+    it('reads the CPU: System, User and Idle add up, each core type, load, clock speeds and processes', () => {
       const lines = runOk(binary, ['--cpu'], { timeout: 30_000 }).stdout.trim().split('\n');
       const value = (title) => lines.find((line) => line.startsWith(`${title}\t`))?.split('\t').slice(1);
       const percent = (title) => Number(value(title)[0].replace('%', ''));
       const sum = percent('System') + percent('User') + percent('Idle');
       assert.ok(Math.abs(sum - 100) <= 2, `System, User and Idle add up to 100% (${sum})`);
       for (const title of ['1 minute', '5 minutes', '15 minutes']) assert.ok(Number(value(title)[0]) >= 0, `${title} load`);
-      assert.match(value('Uptime')[0], /\d/);
       if (process.arch === 'arm64') {
         const types = ['Efficiency cores', 'Performance cores'];
         const counts = types.map((title) => lines.filter((line) => line.startsWith(`${title}\t`)).at(-1).split('\t'));

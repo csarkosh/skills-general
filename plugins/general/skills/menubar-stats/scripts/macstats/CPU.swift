@@ -1,7 +1,6 @@
 // The CPU menu bar item: "CPU" over its usage, and a panel with two gauges (usage,
 // and CPU temperature on the chip's limits), Usage (System and User stacked over three
-// minutes, and each core type), Average load, Frequency, Details (model, cores,
-// uptime) and Top processes. The figures are the ones the Stats app reads
+// minutes, and each core type), Load & frequency (two small charts) and Top processes. The figures are the ones the Stats app reads
 // (Modules/CPU/readers.swift and Kit/plugins/SystemKit.swift, MIT; see
 // LICENSE-stats.txt beside this file).
 
@@ -117,22 +116,6 @@ private func sysctlString(_ name: String) -> String? {
 
 /// "Apple M4".
 let cpuModel = sysctlString("machdep.cpu.brand_string") ?? "CPU"
-
-/// How long since the Mac started.
-func uptime() -> TimeInterval? {
-    var boot = timeval()
-    var size = MemoryLayout<timeval>.size
-    guard sysctlbyname("kern.boottime", &boot, &size, nil, 0) == 0 else { return nil }
-    return Date().timeIntervalSince1970 - (Double(boot.tv_sec) + Double(boot.tv_usec) / 1e6)
-}
-
-/// "2d 3h 12m".
-func formatUptime(_ seconds: TimeInterval) -> String {
-    let formatter = DateComponentsFormatter()
-    formatter.allowedUnits = seconds < 60 ? [.second] : [.day, .hour, .minute]
-    formatter.unitsStyle = .abbreviated
-    return formatter.string(from: seconds) ?? ""
-}
 
 /// The 1, 5 and 15 minute load averages: how many tasks wanted a core, on average.
 func loadAverages() -> [Double] {
@@ -430,7 +413,6 @@ final class CPUPanel: StatsPanel {
     private let typeRows = coreTypes.map { PanelRow($0.name + ":") }
     private let loadChart = MiniChart(width: (Panel.width - 10) / 2)
     private let frequencyChart = MiniChart(width: (Panel.width - 10) / 2)
-    private let uptimeRow = PanelRow("Uptime:")
     private let processRows = (0..<8).map { _ in ProcessRow() }
     private var processTimer: Timer?
 
@@ -484,15 +466,6 @@ final class CPUPanel: StatsPanel {
         frequencyChart.toolTip = "Each core type's average clock speed over the last three minutes, from 0 to its fastest "
             + "step. The title gives all cores' average, weighted by core count; the key under it, each type's now, in MHz."
 
-        body.addArrangedSubview(separatorView("Details"))
-        let model = PanelRow("Model:")
-        model.value.stringValue = cpuModel
-        let cores = PanelRow("Cores:")
-        cores.value.stringValue = coreTypes.isEmpty ? "\(ProcessInfo.processInfo.processorCount)"
-            : coreTypes.reversed().map { "\($0.cores.count) \($0.name.lowercased().replacingOccurrences(of: " cores", with: ""))" }
-                .joined(separator: ", ")
-        for row in [model, cores, uptimeRow] { body.addArrangedSubview(row) }
-
         body.addArrangedSubview(separatorView("Top processes"))
         let heading = ProcessRow()
         heading.name.stringValue = "Process"
@@ -519,7 +492,6 @@ final class CPUPanel: StatsPanel {
         idleRow.value.stringValue = formatPercent(sample.idle)
         for (row, usage) in zip(typeRows, sample.coreUsage) { row.value.stringValue = formatPercent(usage) }
         updateCharts(sample)
-        uptimeRow.value.stringValue = uptime().map(formatUptime) ?? "–"
     }
 
     /// Load and frequency: the charts from the history, their titles and keys from now.
@@ -529,10 +501,12 @@ final class CPUPanel: StatsPanel {
             NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: color])
         }
         let loads = loadAverages()
-        loadChart.title = "Load: " + (loads.first.map { String(format: "%.2f", $0) } ?? "–")
+        // A load average counts tasks wanting a core, so it reads against the cores there are.
+        let cores = ProcessInfo.processInfo.processorCount
+        loadChart.title = "Load: " + (loads.first.map { String(format: "%.2f / %d cores", $0, cores) } ?? "–")
         loadChart.caption = loads.count == 3
             ? small(String(format: "5 min %.2f · 15 min %.2f", loads[1], loads[2]), .secondaryLabelColor) : NSAttributedString()
-        loadChart.scale = max(Double(ProcessInfo.processInfo.processorCount), samples.compactMap(\.load).max() ?? 0)
+        loadChart.scale = max(Double(cores), samples.compactMap(\.load).max() ?? 0)
         loadChart.series = [(samples.map(\.load), loadColor, true)]
 
         frequencyChart.title = "Frequency: " + (sample.frequencies.map { formatMHz(allCoresSpeed($0)) } ?? "–")
@@ -597,10 +571,9 @@ func cpuReport() -> Int32 {
         print("All cores\t" + formatMHz(allCoresSpeed(speeds)))
         for (type, speed) in zip(coreTypes, speeds) { print(type.name + "\t" + formatMHz(speed)) }
     }
-    print("Details")
-    print("Model\t" + cpuModel)
+    // Not in the panel: each core type's cores and clock steps, the frequency chart's scale.
+    print("Cores")
     for type in coreTypes { print(type.name + "\t" + String(type.cores.count) + "\t" + type.steps.map { formatMHz($0) }.joined(separator: ",")) }
-    print("Uptime\t" + (uptime().map(formatUptime) ?? "–"))
     print("Top processes")
     for process in topCPUProcesses() { print(process.name + "\t" + String(format: "%.1f%%", process.usage)) }
     return 0
