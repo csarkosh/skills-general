@@ -1,6 +1,6 @@
 // The GPU menu bar item: "GPU" over its utilization, and a panel with two gauges
 // (utilization, and GPU temperature on the chip's limits), Usage (a history chart
-// and the GPU's figures, ML engine, FPS and Memory each with a small graph) and Top GPU
+// and the GPU's figures, ML engine, Framerate and Memory each with a small graph) and Top GPU
 // apps. The figures are
 // the ones the Stats app reads (Modules/GPU/reader.swift, MIT; see LICENSE-stats.txt
 // beside this file): the accelerator's PerformanceStatistics, and on Apple silicon
@@ -209,7 +209,10 @@ let gpuMemoryColor = NSColor.systemTeal
 let gpuEngineColor = NSColor.systemPurple
 let gpuFramesColor = NSColor.systemGreen
 
-/// The fastest any display redraws (60, or 120 with ProMotion): the FPS graph's top.
+/// The widest value beside a graph, "120 fps", so the graphs line up in one column.
+let graphValueColumn = ceil(NSAttributedString(string: "120 fps", attributes: [.font: NSFont.systemFont(ofSize: 13)]).size().width)
+
+/// The fastest any display redraws (60, or 120 with ProMotion): the framerate graph's top.
 var displayMaxFPS: Double { Double(NSScreen.screens.map(\.maximumFramesPerSecond).max() ?? 60) }
 
 /// The last three minutes, a sample a second.
@@ -311,7 +314,7 @@ final class GPUPanel: StatsPanel {
     private let chart = GPUChart()
     private let seriesRows = gpuSeries.map { PanelRow($0.title + ":", color: $0.color) }
     private let neuralRow = PanelRow("ML engine:")
-    private let fpsRow = PanelRow("FPS:")
+    private let fpsRow = PanelRow("Framerate:")
     private let memoryRow = PanelRow("Memory:")
     // GPU memory in use over the last three minutes, scaled to the most macOS lets the
     // GPU use, so the bar shows how close it is to its limit.
@@ -364,7 +367,7 @@ final class GPUPanel: StatsPanel {
             + "\(Int(displayMaxFPS)), the display's fastest.")
         for (sparkline, row) in [(engineSparkline, neuralRow), (framesSparkline, fpsRow), (memorySparkline, memoryRow)] {
             sparkline.capacity = history.capacity
-            sparkline.place(in: row, valueColumn: 34)  // room for "100%"
+            sparkline.place(in: row, valueColumn: graphValueColumn)
         }
         memoryDetail.font = .systemFont(ofSize: 10)
         memoryDetail.textColor = .labelColor
@@ -406,7 +409,7 @@ final class GPUPanel: StatsPanel {
         }
         for (row, series) in zip(seriesRows, gpuSeries) { row.value.stringValue = formatPercent(series.value(sample)) }
         neuralRow.value.stringValue = sample.neuralEngine.map(formatPercent) ?? "–"
-        fpsRow.value.stringValue = sample.fps.map { String(format: "%.0f", $0) } ?? "–"
+        fpsRow.value.stringValue = sample.fps.map { String(format: "%.0f fps", $0) } ?? "–"
         memoryRow.value.stringValue = formatPercent(sample.memoryInUse / gpuMemoryLimit)
         memoryDetail.stringValue = "\(formatGB(sample.memoryInUse)) / \(formatGB(gpuMemoryLimit)) GB"
         memorySparkline.fractions = history.samples.map { $0.memoryInUse / gpuMemoryLimit }
