@@ -100,10 +100,14 @@ Two gauges like Temp's: usage (System plus User) on Stats' own zones (normal bel
 chart with System (red) and User (blue) stacked from the bottom and Idle the space above, then
 those rows and Idle (grey) in the same colours, and each core type's usage (Efficiency cores,
 Performance cores, and from M5 on Super cores, from the cores' cluster letters in the registry).
-**Average load**: the 1, 5 and 15 minute load averages, how many tasks wanted a core. **Frequency**:
-each core type's average clock speed over the last second, from the time IOReport says its
-clusters spent at each clock step (the steps come from the power manager's voltage tables), and
-All cores weighted by core count, as Stats reads it. **Details**: model, cores by type and uptime.
+**Load & frequency**: two small three-minute charts side by side. Load is the 1-minute load
+average (how many tasks wanted a core) as a pink area, its top the Mac's core count or the peak if
+higher, with the value now as its title and the 5 and 15-minute averages under it. Frequency is
+each core type's average clock speed as a line in Stats' colours (efficiency teal, performance
+indigo), from 0 to the fastest step, with all cores' average (weighted by core count) as its title
+and each type's speed now in the key under it. Speeds come from the time IOReport says each
+cluster spent at each clock step over the last second (the steps from the power manager's voltage
+tables), as Stats reads them. **Details**: model, cores by type and uptime.
 **Top processes**: `ps`'s %CPU, as Stats lists them (macOS averages it over the last minute or so),
 refreshed every two seconds while the panel is open; the header's icon opens Activity Monitor.
 System, User and Idle are Stats' figures from the CPU's tick counts, User without "nice" time.

@@ -13,7 +13,9 @@ import IOKit
 /// A kind of core on Apple silicon, its cores' numbers and its clock steps in MHz.
 struct CoreType {
     let name: String  // "Efficiency cores"
+    let short: String  // "E", for the frequency chart's key
     let channel: String  // its IOReport channels' prefix, "ECPU"
+    let color: NSColor  // Stats' colour for it
     let cores: [Int]
     let steps: [Double]
 }
@@ -76,13 +78,15 @@ let coreTypes: [CoreType] = {
         }
     }
 
-    let kinds: [(letter: String, name: String, channel: String, table: String)] = isM5OrNewer
-        ? [("E", "Efficiency cores", "ECPU", "voltage-states1-sram"), ("M", "Performance cores", "MCPU", "voltage-states22-sram"),
-           ("P", "Super cores", "PCPU", "voltage-states5-sram")]
-        : [("E", "Efficiency cores", "ECPU", "voltage-states1-sram"), ("P", "Performance cores", "PCPU", "voltage-states5-sram")]
+    let efficiency = ("E", "Efficiency cores", "E", "ECPU", NSColor.systemTeal, "voltage-states1-sram")
+    let kinds: [(letter: String, name: String, short: String, channel: String, color: NSColor, table: String)] = isM5OrNewer
+        ? [efficiency, ("M", "Performance cores", "P", "MCPU", .systemIndigo, "voltage-states22-sram"),
+           ("P", "Super cores", "S", "PCPU", .systemOrange, "voltage-states5-sram")]
+        : [efficiency, ("P", "Performance cores", "P", "PCPU", .systemIndigo, "voltage-states5-sram")]
     return kinds.compactMap { kind in
         guard let cores = clusters[kind.letter] else { return nil }
-        return CoreType(name: kind.name, channel: kind.channel, cores: cores.sorted(), steps: steps(kind.table))
+        return CoreType(name: kind.name, short: kind.short, channel: kind.channel, color: kind.color,
+                        cores: cores.sorted(), steps: steps(kind.table))
     }
 }()
 
@@ -97,6 +101,8 @@ struct CPUSample {
     /// Each core type's average clock speed over the last interval in MHz, in
     /// `coreTypes`' order; nil until there are two readings, or without IOReport.
     let frequencies: [Double]?
+    /// The 1-minute load average when read.
+    let load: Double?
 
     var usage: Double { system + user }
 }
@@ -174,7 +180,7 @@ final class CPUSampler {
             return usages.isEmpty ? 0 : usages.reduce(0, +) / Double(usages.count)
         }
         return CPUSample(system: system / ticks, user: user / ticks, idle: idle / ticks,
-                         coreUsage: typeUsage, frequencies: frequencies)
+                         coreUsage: typeUsage, frequencies: frequencies, load: loadAverages().first)
     }
 
     private func cpuTotals() -> host_cpu_load_info? {
@@ -337,6 +343,74 @@ final class CPUChart: NSView {
     }
 }
 
+/// A small chart of the last three minutes, half the panel wide: a title with the value
+/// now above it, and a key or the other figures below. Each series is a filled area or
+/// a line, on one scale; a missing sample leaves a gap.
+final class MiniChart: NSView {
+    var title = ""
+    var caption = NSAttributedString()
+    var series: [(values: [Double?], color: NSColor, filled: Bool)] = [] { didSet { needsDisplay = true } }
+    var scale = 1.0
+    var capacity = 180
+    private let titleHeight: CGFloat = 16
+    private let captionHeight: CGFloat = 14
+
+    init(width: CGFloat) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([widthAnchor.constraint(equalToConstant: width), heightAnchor.constraint(equalToConstant: 92)])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.labelColor,
+        ]).draw(with: NSRect(x: 2, y: bounds.maxY - titleHeight + 2, width: bounds.width - 4, height: titleHeight - 2))
+        caption.draw(with: NSRect(x: 2, y: 1, width: bounds.width - 4, height: captionHeight - 3))
+        let plot = NSRect(x: 0, y: captionHeight, width: bounds.width, height: bounds.height - captionHeight - titleHeight - 2)
+        let frame = NSBezierPath(roundedRect: plot, xRadius: 5, yRadius: 5)
+        NSColor.lightGray.withAlphaComponent(0.1).setFill()
+        frame.fill()
+        guard scale > 0 else { return }
+        NSGraphicsContext.saveGraphicsState()
+        frame.addClip()
+        let step = plot.width / CGFloat(capacity - 1)
+        for series in self.series {
+            let values = series.values
+            let point = { (index: Int, value: Double) in
+                CGPoint(x: plot.maxX - CGFloat(values.count - 1 - index) * step,
+                        y: plot.minY + CGFloat(min(1, max(0, value / self.scale))) * plot.height)
+            }
+            // Runs of samples without a gap, each drawn on its own.
+            var runs: [[(Int, Double)]] = [[]]
+            for (index, value) in values.enumerated() {
+                if let value { runs[runs.count - 1].append((index, value)) } else if !runs[runs.count - 1].isEmpty { runs.append([]) }
+            }
+            for run in runs where run.count > 1 {
+                let path = NSBezierPath()
+                path.move(to: point(run[0].0, run[0].1))
+                for (index, value) in run.dropFirst() { path.line(to: point(index, value)) }
+                if series.filled {
+                    path.line(to: point(run[run.count - 1].0, 0))
+                    path.line(to: point(run[0].0, 0))
+                    path.close()
+                    series.color.withAlphaComponent(0.75).setFill()
+                    path.fill()
+                } else {
+                    path.lineWidth = 1.5
+                    series.color.setStroke()
+                    path.stroke()
+                }
+            }
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
+}
+
+/// The load chart's colour.
+let loadColor = NSColor.systemPink
+
 /// What the CPU item shows: its usage.
 func cpuItemText(_ sample: CPUSample) -> (value: String, tooltip: String) {
     (formatPercent(sample.usage),
@@ -354,9 +428,8 @@ final class CPUPanel: StatsPanel {
     private let partRows = cpuParts.map { PanelRow($0.title + ":", color: $0.color) }
     private let idleRow = PanelRow("Idle:", color: cpuIdleColor)
     private let typeRows = coreTypes.map { PanelRow($0.name + ":") }
-    private let loadRows = ["1 minute:", "5 minutes:", "15 minutes:"].map { PanelRow($0) }
-    private let allCoresRow = PanelRow("All cores:")
-    private let typeSpeedRows = coreTypes.map { PanelRow($0.name + ":") }
+    private let loadChart = MiniChart(width: (Panel.width - 10) / 2)
+    private let frequencyChart = MiniChart(width: (Panel.width - 10) / 2)
     private let uptimeRow = PanelRow("Uptime:")
     private let processRows = (0..<8).map { _ in ProcessRow() }
     private var processTimer: Timer?
@@ -395,14 +468,21 @@ final class CPUPanel: StatsPanel {
             row.toolTip = "How busy the \(type.cores.count) \(type.name.lowercased()) are, on average."
         }
 
-        body.addArrangedSubview(separatorView("Average load"))
-        for row in loadRows {
-            row.toolTip = "How many tasks wanted a core, on average; this Mac has \(ProcessInfo.processInfo.processorCount) cores."
-            body.addArrangedSubview(row)
-        }
-
-        body.addArrangedSubview(separatorView("Frequency"))
-        for row in [allCoresRow] + typeSpeedRows { body.addArrangedSubview(row) }
+        body.addArrangedSubview(separatorView("Load & frequency"))
+        let charts = NSStackView(views: [loadChart, frequencyChart])
+        charts.orientation = .horizontal
+        charts.spacing = 10
+        charts.translatesAutoresizingMaskIntoConstraints = false
+        charts.widthAnchor.constraint(equalToConstant: Panel.width).isActive = true
+        body.addArrangedSubview(charts)
+        body.setCustomSpacing(4, after: charts)
+        loadChart.capacity = history.capacity
+        frequencyChart.capacity = history.capacity
+        loadChart.toolTip = "The 1-minute load average over the last three minutes: how many tasks wanted a core. "
+            + "The chart's top is this Mac's \(ProcessInfo.processInfo.processorCount) cores (or the peak, if higher), "
+            + "so a full chart means every core was wanted. Under it, the 5 and 15-minute averages."
+        frequencyChart.toolTip = "Each core type's average clock speed over the last three minutes, from 0 to its fastest "
+            + "step. The title gives all cores' average, weighted by core count; the key under it, each type's now, in MHz."
 
         body.addArrangedSubview(separatorView("Details"))
         let model = PanelRow("Model:")
@@ -438,15 +518,35 @@ final class CPUPanel: StatsPanel {
         for (row, part) in zip(partRows, cpuParts) { row.value.stringValue = formatPercent(part.value(sample)) }
         idleRow.value.stringValue = formatPercent(sample.idle)
         for (row, usage) in zip(typeRows, sample.coreUsage) { row.value.stringValue = formatPercent(usage) }
-        let loads = loadAverages()
-        for (row, load) in zip(loadRows, loads) { row.value.stringValue = String(format: "%.2f", load) }
-        if let speeds = sample.frequencies {
-            allCoresRow.value.stringValue = formatMHz(allCoresSpeed(speeds))
-            for (row, speed) in zip(typeSpeedRows, speeds) { row.value.stringValue = formatMHz(speed) }
-        } else {
-            for row in [allCoresRow] + typeSpeedRows { row.value.stringValue = "–" }
-        }
+        updateCharts(sample)
         uptimeRow.value.stringValue = uptime().map(formatUptime) ?? "–"
+    }
+
+    /// Load and frequency: the charts from the history, their titles and keys from now.
+    private func updateCharts(_ sample: CPUSample) {
+        let samples = history.samples
+        let small = { (text: String, color: NSColor) in
+            NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: color])
+        }
+        let loads = loadAverages()
+        loadChart.title = "Load: " + (loads.first.map { String(format: "%.2f", $0) } ?? "–")
+        loadChart.caption = loads.count == 3
+            ? small(String(format: "5 min %.2f · 15 min %.2f", loads[1], loads[2]), .secondaryLabelColor) : NSAttributedString()
+        loadChart.scale = max(Double(ProcessInfo.processInfo.processorCount), samples.compactMap(\.load).max() ?? 0)
+        loadChart.series = [(samples.map(\.load), loadColor, true)]
+
+        frequencyChart.title = "Frequency: " + (sample.frequencies.map { formatMHz(allCoresSpeed($0)) } ?? "–")
+        let key = NSMutableAttributedString()
+        for (index, type) in coreTypes.enumerated() {
+            if index > 0 { key.append(small("  ", .secondaryLabelColor)) }
+            key.append(small("● ", type.color))
+            key.append(small(type.short + " " + (sample.frequencies.map { String(Int($0[index].rounded())) } ?? "–"), .secondaryLabelColor))
+        }
+        frequencyChart.caption = key
+        frequencyChart.scale = coreTypes.compactMap { $0.steps.max() }.max() ?? 1
+        frequencyChart.series = coreTypes.enumerated().map { index, type in
+            (samples.map { $0.frequencies?[index] }, type.color, false)
+        }
     }
 
     override func willOpen() {
