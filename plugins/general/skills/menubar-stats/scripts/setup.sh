@@ -111,8 +111,12 @@ if [ -e "$OLD_APP" ] || [ -e "$OLD_AGENT" ]; then
 fi
 say "Building MacStats if its source changed..."
 stop_app MacStats
-mkdir -p "$APP/Contents/MacOS"
-cat > "$APP/Contents/Info.plist" <<'EOF'
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+# Anything changed in the app (its settings file, its program or its icon) means signing
+# it again: the signature covers them all.
+CHANGED=0
+PLIST_NEW="$(mktemp)"
+cat > "$PLIST_NEW" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -120,6 +124,7 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
   <key>CFBundleIdentifier</key><string>sh.csarko.MacStats</string>
   <key>CFBundleName</key><string>MacStats</string>
   <key>CFBundleExecutable</key><string>MacStats</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>LSUIElement</key><true/>
@@ -127,6 +132,7 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 </dict>
 </plist>
 EOF
+if cmp -s "$PLIST_NEW" "$APP/Contents/Info.plist"; then rm -f "$PLIST_NEW"; else mv "$PLIST_NEW" "$APP/Contents/Info.plist"; CHANGED=1; fi
 # Rebuild only when the source changed: a rebuild gives the app a new signature, which
 # resets any permission macOS has granted it.
 SOURCE_HASH="$(cat "$DIR"/macstats/*.swift | shasum -a 256 | cut -d' ' -f1)"
@@ -135,9 +141,24 @@ if [ -x "$APP/Contents/MacOS/MacStats" ] && [ "$(cat "$BUILT_HASH" 2>/dev/null)"
   say "MacStats is up to date."
 else
   xcrun swiftc -O "$DIR"/macstats/*.swift -o "$APP/Contents/MacOS/MacStats"
-  mkdir -p "$APP/Contents/Resources"
   printf '%s\n' "$SOURCE_HASH" > "$BUILT_HASH"
+  CHANGED=1
+fi
+# The icon, the CS logo, is drawn by MacStats itself (AppIcon.swift), so it is redrawn
+# with each build.
+ICON="$APP/Contents/Resources/AppIcon.icns"
+if [ "$CHANGED" = 1 ] || [ ! -f "$ICON" ]; then
+  ICONSET="$(mktemp -d)/AppIcon.iconset"
+  "$APP/Contents/MacOS/MacStats" --write-icon "$ICONSET"
+  iconutil -c icns -o "$ICON" "$ICONSET"
+  rm -rf "$(dirname "$ICONSET")"
+  CHANGED=1
+fi
+if [ "$CHANGED" = 1 ]; then
   codesign --force --sign - "$APP" 2>/dev/null
+  # Finder and the menu bar settings show the new icon once Launch Services rereads the app.
+  touch "$APP"
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" || true
 fi
 
 # 5. Start MacStats now and at every login.

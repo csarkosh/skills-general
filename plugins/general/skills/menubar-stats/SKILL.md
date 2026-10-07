@@ -29,8 +29,9 @@ notch has little room.
 Each feature is one file, so a later App Store edition can leave one out (the sandbox forbids the
 SMC reads and the disk-wide folder walk): `MenuKit.swift` (the item and the panel's look, shared),
 `CPU.swift`, `GPU.swift` (both with `IOReport.swift`, the private counters they read), `RAM.swift`, `Temp.swift` with `Sensors.swift`, `SMC.swift` and `SensorCatalog.swift`, `Disk.swift`, and
-`Battery.swift` (the battery's charge, for Temp's Power section), and `main.swift` (starts them
-all, and the command line). `SMC.swift` and `SensorCatalog.swift` are adapted
+`Battery.swift` (the battery's charge, for Temp's Power section), `AppIcon.swift` (the app's icon,
+the CS logo of csarko.sh, drawn in code), and `main.swift` (starts them all, and the command
+line). `SMC.swift` and `SensorCatalog.swift` are adapted
 from Stats (MIT); its licence is `scripts/macstats/LICENSE-stats.txt`.
 
 Use `scripts/setup.sh` in this skill's directory rather than writing your own: it holds the
@@ -48,7 +49,9 @@ they are missing the script stops and prints `xcode-select --install`, which the
 themselves at a real terminal and then click Install. A "Background Items Added" notice for the
 login agent is information only. Install nothing the user did not ask for.
 
-The script stops and restarts MacStats, writes the items' places, adds the login agent
+The script stops and restarts MacStats, gives it its icon (`MacStats --write-icon` draws the
+sizes, `iconutil` packs them; it signs the app again whenever its program, icon or `Info.plist`
+changed), writes the items' places, adds the login agent
 `sh.csarko.macstats` (`~/Library/LaunchAgents`), and then prints the menu bar's order. It retires
 what earlier versions set up: DiskMenu (MacStats' older Disk-only form), and the
 `sh.csarko.stats-at-login` agent that kept the Stats app running for the CPU item; then it stops

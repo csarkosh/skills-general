@@ -11,6 +11,7 @@
 //   MacStats --show-panel cpu|gpu|ram|temp|disk[,…]  # runs, opening those panels in turn, as clicks would
 //   MacStats --render cpu|gpu|ram|temp|disk out.png  # draws that menu bar item to a PNG and exits
 //                                           # (with --alert, Temp as it looks when hot)
+//   MacStats --write-icon <dir>.iconset     # draws the app icon at iconutil's sizes and exits
 //   MacStats --cpu                          # prints the CPU panel and exits
 //   MacStats --gpu                          # prints the GPU panel and exits
 //   MacStats --memory                       # prints the RAM panel and exits
@@ -137,6 +138,9 @@ if arguments.contains("--render") {
         exit(renderMiniView(label: "Disk", value: text.value, to: path))
     default: fail("usage: MacStats --render cpu|gpu|ram|temp|disk <out.png>")
     }
+}
+if let directory = argument(after: "--write-icon") {
+    exit(writeIconSet(to: directory))
 }
 if arguments.contains("--cpu") {
     exit(cpuReport())

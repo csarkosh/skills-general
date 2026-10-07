@@ -98,6 +98,19 @@ describe('menubar-stats', () => {
       for (let i = 1; i < processes.length; i++) assert.ok(processes[i - 1] >= processes[i], 'the busiest first');
     });
 
+    it('draws the CS logo app icon at every size iconutil packs', (t) => {
+      const iconset = join(tempDir(t, 'macstats-icon'), 'AppIcon.iconset');
+      runOk(binary, ['--write-icon', iconset]);
+      const files = readdirSync(iconset).sort();
+      assert.equal(files.length, 10, 'five sizes, each at 1x and 2x');
+      for (const file of files) {
+        const [, points, retina] = /^icon_(\d+)x\1(@2x)?\.png$/.exec(file);
+        assert.equal(readFileSync(join(iconset, file)).readUInt32BE(16), Number(points) * (retina ? 2 : 1), `${file}'s width`);
+      }
+      runOk('iconutil', ['-c', 'icns', '-o', join(dirname(iconset), 'AppIcon.icns'), iconset]);
+      assert.match(setup, /CFBundleIconFile<\/key><string>AppIcon</, 'setup.sh names the icon in Info.plist');
+    });
+
     it('renders the GPU item as its utilization', (t) => {
       const png = join(tempDir(t, 'macstats-png'), 'gpu.png');
       assert.match(runOk(binary, ['--render', 'gpu', png]).stdout, /^\d+%\n$/);
