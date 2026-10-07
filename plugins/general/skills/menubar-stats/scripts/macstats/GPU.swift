@@ -357,9 +357,9 @@ final class GPUPanel: StatsPanel {
         body.addArrangedSubview(chart)
         body.setCustomSpacing(6, after: chart)
         // Two groups: the chart's rows, then the rows with their own small graphs (Memory
-        // with its GB line under it, Framerate, ML engine), 2 pt apart.
+        // with its GB line under it, Framerate, ML engine), 4 pt apart.
         for row in seriesRows { body.addArrangedSubview(row) }
-        if let tiler = seriesRows.last { body.setCustomSpacing(2, after: tiler) }
+        if let tiler = seriesRows.last { body.setCustomSpacing(4, after: tiler) }
         body.addArrangedSubview(memoryRow)
         seriesRows[0].hoverTip = twoLines("Time the GPU was busy with any work: the screen, games, video, compute.")
         seriesRows[1].hoverTip = twoLines("Time spent colouring pixels, the last step in drawing each frame.")

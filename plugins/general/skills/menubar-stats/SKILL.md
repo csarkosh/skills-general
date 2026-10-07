@@ -135,7 +135,7 @@ System, User and Idle are Stats' figures from the CPU's tick counts, User withou
 Two gauges like Temp's: utilization on Stats' own zones (normal below 60%, busy below 80%, heavy
 from 80%) and the GPU's temperature on the chip's limits. **Usage**: a three-minute chart with
 utilization as a blue area and Renderer and Tiler as orange and pink lines (on Apple silicon the
-three move together), then those three rows in the same colours. 2 pt below them, a second group, each row with a
+three move together), then those three rows in the same colours. 4 pt below them, a second group, each row with a
 small three-minute graph, lined up in one column: Memory in teal, the GPU's memory in use as a
 share of the most macOS lets it use (Metal's recommended working set, 11.84 GB of a 16 GB Mac),
 with `0.49 / 11.84 GB` under it and what it holds set aside in its tooltip; Framerate in green
