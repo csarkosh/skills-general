@@ -4,12 +4,14 @@ import assert from 'node:assert/strict';
 import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { ROOT, readJson } from './helpers.mjs';
+import { ROOT, isLocal, readJson } from './helpers.mjs';
 
 const claudeMarketplace = readJson(join(ROOT, '.claude-plugin/marketplace.json'));
 const codexMarketplace = readJson(join(ROOT, '.agents/plugins/marketplace.json'));
-const claudePlugins = claudeMarketplace.plugins.map((p) => ({ name: p.name, dir: join(ROOT, p.source) }));
-const codexPlugins = codexMarketplace.plugins.map((p) => ({ name: p.name, dir: join(ROOT, p.source.path) }));
+const claudePlugins = claudeMarketplace.plugins.filter(isLocal).map((p) => ({ name: p.name, dir: join(ROOT, p.source) }));
+const codexPlugins = codexMarketplace.plugins.filter(isLocal).map((p) => ({ name: p.name, dir: join(ROOT, p.source.path) }));
+const claudeExternal = claudeMarketplace.plugins.filter((p) => !isLocal(p));
+const codexExternal = codexMarketplace.plugins.filter((p) => !isLocal(p));
 
 // Names of tools and variables that exist only in Claude Code. A skill in a plugin Codex installs
 // must not depend on them.
@@ -57,6 +59,20 @@ describe('marketplaces', () => {
         assert.equal(codex.name, plugin.name);
         assert.equal(codex.version, claude.version, `${plugin.name}: both manifests carry the same version`);
       }
+    }
+  });
+
+  // Plugins kept in another repository (nyc) are optional extras listed here. Both catalogs must
+  // fetch them the same way, from one of this owner's GitHub repos, tracking its default branch.
+  it('list plugins from other repositories identically in both catalogs, tracking their main branch', () => {
+    assert.deepEqual(codexExternal.map((p) => p.name), claudeExternal.map((p) => p.name));
+    for (const plugin of claudeExternal) {
+      const { source } = plugin;
+      assert.equal(source.source, 'git-subdir', `${plugin.name} is fetched as a folder of another repository`);
+      assert.match(source.url, /^https:\/\/github\.com\/csarkosh\/[\w.-]+\.git$/);
+      assert.match(source.path, /^plugins\/[a-z0-9-]+$/);
+      assert.ok(!('ref' in source) && !('sha' in source), `${plugin.name} tracks the default branch, not a pin`);
+      assert.deepEqual(codexExternal.find((p) => p.name === plugin.name).source, source);
     }
   });
 });

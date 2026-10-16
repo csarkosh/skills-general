@@ -9,8 +9,8 @@ public, so everything in it is public too.
 
 | Path | What |
 |---|---|
-| `.claude-plugin/marketplace.json` | The Claude Code catalog: marketplace `csarkosh`, listing `general` and `general-claude`. |
-| `.agents/plugins/marketplace.json` | The Codex catalog: the same marketplace name, listing only `general`. |
+| `.claude-plugin/marketplace.json` | The Claude Code catalog: marketplace `csarkosh`, listing `general`, `general-claude` and the optional `nyc`. |
+| `.agents/plugins/marketplace.json` | The Codex catalog: the same marketplace name, listing `general` and `nyc`. |
 | `plugins/general/` | **Skills for both agents.** One `skills/` folder with a manifest per agent: `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`. |
 | `plugins/general-claude/` | **Claude Code-only skills**, for skills that need Claude Code's own tools (the Artifact tool, subagents, `AskUserQuestion`). Claude manifest only. |
 | `plugins/*/skills/<name>/` | One skill: `SKILL.md`, plus `scripts/`, `assets/` and `references/` as needed. |
@@ -31,6 +31,12 @@ public, so everything in it is public too.
 | `general` | `call-recorder` | Records a call on macOS as two tracks (far side via BlackHole, mic) and transcribes it locally with mlx-whisper into speaker-labelled turns; also transcribes a single voice memo. Needs Python, `mlx-whisper`, ffmpeg and BlackHole on Apple Silicon. |
 | `general` | `menubar-stats` | Sets up a Mac's menu bar with CPU, GPU, RAM, Temp and Disk free space left-most in that order (MacStats, github.com/csarkosh/app-macstats, which the skill installs with the app's own installer: Temp's panel groups the Mac's sensors and weights each group toward its hottest, Disk's shows where the space goes without opening private folders), keeps other apps' icons out of the group, and checks the order without Screen Recording permission. Needs the Xcode Command Line Tools. |
 | `general-claude` | `doc-artifact` | Publishes a markdown doc as a claude.ai Artifact in a Nord house style. |
+
+`nyc` is listed in both catalogs but lives in
+[`csarkosh/skills-nyc`](https://github.com/csarkosh/skills-nyc): New York City skills, which not
+everyone wants, so they are a separate, optional install. Its entries are `git-subdir` sources
+that track that repo's `main`, so a change there needs no change here. Its skills, versions and
+tests belong to that repo.
 
 ## Workflows
 

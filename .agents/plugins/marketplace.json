@@ -15,6 +15,19 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Productivity"
+    },
+    {
+      "name": "nyc",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/csarkosh/skills-nyc.git",
+        "path": "plugins/nyc"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Lifestyle"
     }
   ]
 }

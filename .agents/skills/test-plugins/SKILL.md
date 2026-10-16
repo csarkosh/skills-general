@@ -15,10 +15,10 @@ node --test test/codex.test.mjs   # one suite
 
 | Suite | Proves | Model calls |
 | --- | --- | --- |
-| `test/structure.test.mjs` | The two marketplaces agree, every manifest pair matches, every `SKILL.md` is valid, `general` names no Claude Code-only tool | No |
+| `test/structure.test.mjs` | The two marketplaces agree (including the `nyc` entry fetched from skills-nyc's `main`), every manifest pair matches, every `SKILL.md` is valid, `general` names no Claude Code-only tool | No |
 | `test/doc-preview.test.mjs` | `render.mjs` renders a doc with nothing installed and no network | No |
-| `test/claude.test.mjs` | `claude plugin validate --strict` passes; both plugins install from the marketplace, byte-identical; a headless `claude -p` session invokes `general:doc-preview` and runs the installed script | One session (sonnet) |
-| `test/codex.test.mjs` | Codex lists only `general`; it installs byte-identical; a `codex exec` session runs the installed script | One session |
+| `test/claude.test.mjs` | `claude plugin validate --strict` passes; both local plugins install from the marketplace, byte-identical; `nyc` installs from GitHub (live only); a headless `claude -p` session invokes `general:doc-preview` and runs the installed script | One session (sonnet) |
+| `test/codex.test.mjs` | Codex lists only `general` and `nyc`; `general` installs byte-identical; `nyc` installs from GitHub (live only); a `codex exec` session runs the installed script | One session |
 
 The live tests send a request that describes what the user wants without naming the skill, so
 they also prove the skill's description triggers it.

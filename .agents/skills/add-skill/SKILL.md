@@ -12,6 +12,7 @@ description: Use when adding a new skill to skills-general, moving a skill in fr
 | Only reading files, running shell commands, and editing | `plugins/general/skills/<name>/` (both agents) |
 | A Claude Code-only tool: Artifact, Agent/subagents, `AskUserQuestion`, Skill, Workflow | `plugins/general-claude/skills/<name>/` |
 | Anything about one specific repository (its deploy, its file layout, its conventions) | Not here. Keep it in that repository's `.agents/skills/` |
+| Anything only useful in New York City | Not here. [`csarkosh/skills-nyc`](https://github.com/csarkosh/skills-nyc), which this marketplace lists as the optional `nyc` plugin |
 
 ## 2. Write it
 

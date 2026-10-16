@@ -9,6 +9,7 @@ Agent skills I share across my repositories, packaged as one plugin marketplace 
 | --- | --- | --- |
 | `general` | Claude Code and Codex | `doc-preview`: open a markdown doc as a styled page in Chrome<br>`search-console`: report a static site's Google indexing, sitemap and search performance<br>`linkedin`: profile, messages, invitations, notifications and contact settings on LinkedIn, quietly, in your signed-in browser<br>`recruiter-replies`: answer recruiter messages from your own preferences, sending only what you approve<br>`call-recorder`: record a call on macOS as two tracks and transcribe it locally with speaker labels, or transcribe a voice memo<br>`menubar-stats`: set up a Mac's menu bar with CPU, GPU, RAM, temperature and free disk space, grouped left-most, with panels for every sensor and for where the disk's space goes |
 | `general-claude` | Claude Code only | `doc-artifact`: publish a markdown doc as a claude.ai Artifact |
+| `nyc` (optional) | Claude Code and Codex | New York City skills, kept in [skills-nyc](https://github.com/csarkosh/skills-nyc): `comedy-cellar` and `tech-events`. Install it only if NYC is relevant to you |
 
 Each skill is a folder with a `SKILL.md` in the open [Agent Skills](https://agentskills.io)
 format. Both agents read the same folder, and each plugin carries one small manifest per agent.
@@ -41,11 +42,14 @@ marketplace when someone trusts the folder; install the plugins with
 }
 ```
 
+Add `"nyc@csarkosh": true` as well for the New York City skills.
+
 **Codex:** add the marketplace once per machine, then install the plugin.
 
 ```bash
 codex plugin marketplace add csarkosh/skills-general
 codex plugin add general@csarkosh
+codex plugin add nyc@csarkosh       # optional: the New York City skills
 ```
 
 Skills trigger on their own when a request matches their description. To call one by name, use

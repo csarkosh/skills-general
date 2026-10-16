@@ -16,6 +16,15 @@
       "name": "general-claude",
       "source": "./plugins/general-claude",
       "description": "Skills that depend on Claude Code's own tools."
+    },
+    {
+      "name": "nyc",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/csarkosh/skills-nyc.git",
+        "path": "plugins/nyc"
+      },
+      "description": "Optional New York City skills, kept in csarkosh/skills-nyc. Works in Claude Code and Codex."
     }
   ]
 }

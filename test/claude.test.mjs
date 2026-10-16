@@ -5,13 +5,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { before, describe, it } from 'node:test';
 import {
-  LIVE, MARKETPLACE, ROOT, cleanEnv, listFiles, parseJsonLines, previewPrompt, readJson, requireCli, run, runOk,
+  LIVE, MARKETPLACE, ROOT, cleanEnv, isLocal, listFiles, parseJsonLines, previewPrompt, readJson, requireCli, run, runOk,
   sampleRepo, tempDir,
 } from './helpers.mjs';
 
-const PLUGINS = readJson(join(ROOT, '.claude-plugin/marketplace.json')).plugins.map((p) => p.name);
+const CATALOG = readJson(join(ROOT, '.claude-plugin/marketplace.json')).plugins;
+const PLUGINS = CATALOG.filter(isLocal).map((p) => p.name);
+const EXTERNAL = CATALOG.filter((p) => !isLocal(p));
 
-// Installs every plugin in the marketplace into a fresh CLAUDE_CONFIG_DIR and returns that directory.
+// Installs every plugin kept in this repository into a fresh CLAUDE_CONFIG_DIR and returns that directory.
 function installAll(t) {
   const configDir = tempDir(t, 'claude-config');
   const env = cleanEnv({ CLAUDE_CONFIG_DIR: configDir });
@@ -27,6 +29,20 @@ describe('Claude Code', () => {
   it('validates the marketplace and every plugin with --strict', () => {
     runOk('claude', ['plugin', 'validate', '--strict', ROOT]);
     for (const plugin of PLUGINS) runOk('claude', ['plugin', 'validate', '--strict', join(ROOT, 'plugins', plugin)]);
+  });
+
+  // Fetches each plugin listed from another repository (nyc) from GitHub, so it runs with the live tests.
+  it('installs the plugins kept in other repositories from GitHub', { skip: !LIVE && 'SKILLS_LIVE=0' }, (t) => {
+    const env = cleanEnv({ CLAUDE_CONFIG_DIR: tempDir(t, 'claude-config') });
+    runOk('claude', ['plugin', 'marketplace', 'add', ROOT], { env });
+    for (const plugin of EXTERNAL) {
+      runOk('claude', ['plugin', 'install', `${plugin.name}@${MARKETPLACE}`], { env, timeout: 180_000 });
+      const installed = JSON.parse(runOk('claude', ['plugin', 'list', '--json'], { env }).stdout);
+      const entry = installed.find((p) => p.id === `${plugin.name}@${MARKETPLACE}`);
+      assert.ok(entry?.enabled, `${plugin.name} is installed and enabled`);
+      assert.ok(existsSync(join(entry.installPath, '.claude-plugin/plugin.json')), `${plugin.name} has its manifest`);
+      assert.ok(listFiles(join(entry.installPath, 'skills')).some((f) => f.endsWith('/SKILL.md')), `${plugin.name} has skills`);
+    }
   });
 
   it('installs every plugin from the marketplace, enabled and byte-identical to the source', (t) => {

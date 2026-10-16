@@ -6,12 +6,14 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { before, describe, it } from 'node:test';
 import {
-  LIVE, MARKETPLACE, ROOT, cleanEnv, listFiles, parseJsonLines, previewPrompt, readJson, requireCli, run, runOk,
+  LIVE, MARKETPLACE, ROOT, cleanEnv, isLocal, listFiles, parseJsonLines, previewPrompt, readJson, requireCli, run, runOk,
   sampleRepo, tempDir,
 } from './helpers.mjs';
 
-const PLUGINS = readJson(join(ROOT, '.agents/plugins/marketplace.json')).plugins.map((p) => p.name);
-const CLAUDE_ONLY = readJson(join(ROOT, '.claude-plugin/marketplace.json')).plugins.map((p) => p.name).filter((name) => !PLUGINS.includes(name));
+const CATALOG = readJson(join(ROOT, '.agents/plugins/marketplace.json')).plugins;
+const PLUGINS = CATALOG.filter(isLocal).map((p) => p.name);
+const EXTERNAL = CATALOG.filter((p) => !isLocal(p)).map((p) => p.name);
+const CLAUDE_ONLY = readJson(join(ROOT, '.claude-plugin/marketplace.json')).plugins.map((p) => p.name).filter((name) => !CATALOG.some((p) => p.name === name));
 
 function installAll(t) {
   const home = tempDir(t, 'codex-home');
@@ -53,8 +55,17 @@ describe('Codex', () => {
     const env = cleanEnv({ CODEX_HOME: home });
     runOk('codex', ['plugin', 'marketplace', 'add', ROOT], { env });
     const list = runOk('codex', ['plugin', 'list'], { env }).stdout;
-    for (const plugin of PLUGINS) assert.match(list, new RegExp(`^${plugin}@${MARKETPLACE}\\s+not installed`, 'm'));
+    for (const plugin of [...PLUGINS, ...EXTERNAL]) assert.match(list, new RegExp(`^${plugin}@${MARKETPLACE}\\s+not installed`, 'm'));
     for (const plugin of CLAUDE_ONLY) assert.doesNotMatch(list, new RegExp(`^${plugin}@`, 'm'), `${plugin} is Claude Code only`);
+  });
+
+  // Fetches each plugin listed from another repository (nyc) from GitHub, so it runs with the live tests.
+  it('installs the plugins kept in other repositories from GitHub', { skip: !LIVE && 'SKILLS_LIVE=0' }, (t) => {
+    const env = cleanEnv({ CODEX_HOME: tempDir(t, 'codex-home') });
+    runOk('codex', ['plugin', 'marketplace', 'add', ROOT], { env });
+    for (const plugin of EXTERNAL) runOk('codex', ['plugin', 'add', `${plugin}@${MARKETPLACE}`], { env, timeout: 180_000 });
+    const list = runOk('codex', ['plugin', 'list'], { env }).stdout;
+    for (const plugin of EXTERNAL) assert.match(list, new RegExp(`^${plugin}@${MARKETPLACE}\\s+installed, enabled`, 'm'));
   });
 
   it('installs every plugin, enabled and byte-identical to the source', (t) => {

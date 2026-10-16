@@ -18,6 +18,12 @@ export function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
 
+// A catalog entry whose files are in this repository. The others (nyc) are fetched from their own
+// repository at install time, so the install tests only reach them with network access.
+export function isLocal(entry) {
+  return typeof entry.source === 'string' || entry.source.source === 'local';
+}
+
 // Runs a command to completion. stdin is closed so an agent CLI never waits on it.
 export function run(cmd, args, { cwd, env = cleanEnv(), timeout = 120_000 } = {}) {
   const result = spawnSync(cmd, args, { cwd, env, timeout, input: '', encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
