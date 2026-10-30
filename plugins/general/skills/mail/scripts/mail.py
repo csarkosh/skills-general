@@ -278,8 +278,11 @@ class Mail:
         row = row or self.ensure_alias(from_local)
         raw = build_message(from_local=from_local, domain=self.s.domain, from_name=row.get("name"), to=to, subject=subject,
                             body=body, attachments=attachments, in_reply_to=in_reply_to, references=references)
+        # SES rewrites From to the call's FromEmailAddress, so the call carries the header exactly
+        # as built (display name included, encoded words left encoded).
+        from_header = email.message_from_bytes(raw, policy=email.policy.compat32)["From"]
         message_id = self.ses.send_email(
-            FromEmailAddress=f"{from_local}@{self.s.domain}", Destination={"ToAddresses": [to]},
+            FromEmailAddress=str(from_header), Destination={"ToAddresses": [to]},
             Content={"Raw": {"Data": raw}}, ConfigurationSetName=self.s.config_set,
         )["MessageId"]
         key = f"sent/{message_id}"

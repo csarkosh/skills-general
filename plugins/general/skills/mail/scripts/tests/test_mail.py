@@ -246,6 +246,14 @@ class Commands(unittest.TestCase):
         self.assertIn("ALIAS#tips", [pk for pk, _ in self.fake.table.items])  # sending creates the alias
         self.assertEqual(json.loads(out)["message_id"], mid)
 
+    def test_send_names_the_whole_from_header(self):
+        # SES rewrites From to the call's FromEmailAddress, so the call must carry the display name.
+        self.fake.table.seed({"pk": "ALIAS#tips", "sk": "ALIAS", "local": "tips", "state": "forward", "name": "Tips Desk"})
+        run(["send", "--from", "tips", "--to", "ada@example.org", "--subject", "Hi", "--body", "x"], self.fake)
+        call = self.fake.ses.calls[0]
+        self.assertEqual(call["FromEmailAddress"], "Tips Desk <tips@example.com>")
+        self.assertEqual(call["FromEmailAddress"], parse(call["Content"]["Raw"]["Data"])["From"])
+
     def test_send_as_a_blocked_alias_is_refused(self):
         self.fake.table.seed({"pk": "ALIAS#spammy", "sk": "ALIAS", "local": "spammy", "state": "block"})
         code, _, err = run(["send", "--from", "spammy", "--to", "a@b.c", "--subject", "x", "--body", "y"], self.fake)
