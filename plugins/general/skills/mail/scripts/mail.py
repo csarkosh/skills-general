@@ -89,7 +89,9 @@ def resolve(args, env) -> Settings:
 
 _OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?")
 _CSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f\x1b]")
+# C0 and C1 controls (0x9b is an 8-bit CSI) and the bidi overrides and isolates that can make
+# text read in a different order than it is.
+_CONTROL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069\u200e\u200f\u061c]")
 
 
 def safe(text) -> str:
@@ -305,10 +307,11 @@ def _print(args, data, text_lines):
 
 
 def _table(rows, columns):
-    widths = [max([len(c)] + [len(str(r.get(k, ""))) for r in rows]) for c, k, _ in columns]
+    # Every cell goes through safe(): aliases and ids come from strangers' envelope addresses too.
+    widths = [max([len(c)] + [len(safe(r.get(k, ""))) for r in rows]) for c, k, _ in columns]
     out = ["  ".join(c.upper().ljust(w) for (c, _, _), w in zip(columns, widths))]
     for r in rows:
-        out.append("  ".join(str(r.get(k, "")).ljust(w)[: m or None] for (_, k, m), w in zip(columns, widths)).rstrip())
+        out.append("  ".join(safe(r.get(k, "")).ljust(w)[: m or None] for (_, k, m), w in zip(columns, widths)).rstrip())
     return out
 
 
@@ -338,7 +341,7 @@ def cmd_alias(m: Mail, args):
             names[key], values[f":{key[1]}"] = attr, value
     row = m.table.update_item(Key={"pk": f"ALIAS#{local}", "sk": "ALIAS"}, UpdateExpression="SET " + ", ".join(sets),
                               ExpressionAttributeNames=names, ExpressionAttributeValues=values, ReturnValues="ALL_NEW")["Attributes"]
-    _print(args, row, [f"{local}: {row.get('state')}" + (f", name {safe(row['name'])}" if row.get("name") else "")])
+    _print(args, row, [safe(f"{local}: {row.get('state')}" + (f", name {row['name']}" if row.get("name") else ""))])
     return 0
 
 
@@ -397,7 +400,7 @@ def cmd_read(m: Mail, args):
     if args.json:
         print(json.dumps(_plain({**row, "text": text, "saved": saved}), indent=2, sort_keys=True))
     else:
-        print(f"id:      {row['message_id']}  ({row.get('direction')}, alias {row.get('alias')})")
+        print(safe(f"id:      {row['message_id']}  ({row.get('direction')}, alias {row.get('alias')})"))
         print(text, end="")
         for path in saved:
             print(f"saved:   {path}")
@@ -411,7 +414,7 @@ def _body(args) -> str:
 def cmd_send(m: Mail, args):
     result = m.send(from_local=args.from_local.strip().lower(), to=args.to, subject=args.subject, body=_body(args),
                     attachments=args.attach or [])
-    _print(args, result, [f"sent {result['message_id']} from {result['from']} to {result['to']}"])
+    _print(args, result, [safe(f"sent {result['message_id']} from {result['from']} to {result['to']}")])
     return 0
 
 
@@ -430,7 +433,7 @@ def cmd_reply(m: Mail, args):
     references = " ".join(x for x in (str(original["References"] or "").strip(), parent) if x) or None
     result = m.send(from_local=row["alias"], to=to, subject=subject, body=_body(args), attachments=args.attach or [],
                     in_reply_to=parent or None, references=references)
-    _print(args, result, [f"sent {result['message_id']} from {result['from']} to {result['to']}"])
+    _print(args, result, [safe(f"sent {result['message_id']} from {result['from']} to {result['to']}")])
     return 0
 
 
@@ -442,7 +445,7 @@ def cmd_forward(m: Mail, args):
     response = lam.invoke(FunctionName=m.s.function, InvocationType="RequestResponse",
                           Payload=json.dumps({"action": "forward", "message_id": args.id}).encode())
     result = json.loads(response["Payload"].read() or b"{}")
-    _print(args, result, [f"{args.id}: " + ("forwarded" if result.get("sent") else f"not forwarded ({result.get('error')})")])
+    _print(args, result, [safe(f"{args.id}: ") + ("forwarded" if result.get("sent") else f"not forwarded ({result.get('error')})")])
     return 0 if result.get("sent") else 1
 
 

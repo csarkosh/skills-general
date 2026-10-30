@@ -344,6 +344,17 @@ class Commands(unittest.TestCase):
         self.assertIn("Hello there", out)
         self.assertNotIn("\x1b", out)
 
+    def test_text_output_strips_c1_controls_and_bidi_overrides_everywhere(self):
+        evil_alias = "x\u202eevil\x9b2J"
+        self.fake.table.seed({"pk": f"ALIAS#{evil_alias}", "sk": "ALIAS", "local": evil_alias, "state": "forward",
+                              "last_seen": "2026\x9b2J", "first_from": "a\u2066b@example.org"})
+        stored(self.fake, "id\x9b2Jx", evil_alias, PLAIN.replace(b"Hello there", "Hi \u202e\u0085there".encode()))
+        for argv in (["aliases"], ["ls"], ["ls", "--alias", evil_alias], ["read", "id\x9b2Jx"]):
+            code, out, _ = run(argv, self.fake)
+            self.assertEqual(code, 0, argv)
+            for bad in ("\x9b", "\u202e", "\u2066", "\x85", "\x1b"):
+                self.assertNotIn(bad, out, (argv, bad))
+
     def test_status(self):
         stored(self.fake, "m1", "hello", PLAIN)
         code, out, _ = run(["status", "--json"], self.fake)
