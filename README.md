@@ -7,7 +7,7 @@ Agent skills I share across my repositories, packaged as one plugin marketplace 
 
 | Plugin | For | Skills |
 | --- | --- | --- |
-| `general` | Claude Code and Codex | `doc-preview`: open a markdown doc as a styled page in Chrome<br>`search-console`: report a static site's Google indexing, sitemap and search performance<br>`linkedin`: profile, messages, invitations, notifications and contact settings on LinkedIn, quietly, in your signed-in browser<br>`recruiter-replies`: answer recruiter messages from your own preferences, sending only what you approve<br>`call-recorder`: record a call on macOS as two tracks and transcribe it locally with speaker labels, or transcribe a voice memo<br>`menubar-stats`: set up a Mac's menu bar with CPU, GPU, RAM, temperature and free disk space, grouped left-most, with panels for every sensor and for where the disk's space goes |
+| `general` | Claude Code and Codex | `doc-preview`: open a markdown doc as a styled page in Chrome<br>`search-console`: report a static site's Google indexing, sitemap and search performance<br>`linkedin`: profile, messages, invitations, notifications and contact settings on LinkedIn, quietly, in your signed-in browser<br>`recruiter-replies`: answer recruiter messages from your own preferences, sending only what you approve<br>`call-recorder`: record a call on macOS as two tracks and transcribe it locally with speaker labels, or transcribe a voice memo<br>`mail`: read and send a domain's alias mail (Amazon SES), block or name aliases, sending only on your word<br>`menubar-stats`: set up a Mac's menu bar with CPU, GPU, RAM, temperature and free disk space, grouped left-most, with panels for every sensor and for where the disk's space goes |
 | `general-claude` | Claude Code only | `doc-artifact`: publish a markdown doc as a claude.ai Artifact |
 | `nyc` (optional) | Claude Code and Codex | New York City skills, kept in [skills-nyc](https://github.com/csarkosh/skills-nyc): `comedy-cellar` and `tech-events`. Install it only if NYC is relevant to you |
 
@@ -17,6 +17,7 @@ format. Both agents read the same folder, and each plugin carries one small mani
 Scripts carry their own dependencies, so a skill needs only Node — except these:
 
 - `search-console`: Python 3.9 or newer plus `google-auth`
+- `mail`: Python 3.11 or newer plus `boto3`, and AWS credentials for the system it reads
   (`python3 -m pip install --user google-auth`), and `gcloud` for its one-time setup script.
 - `call-recorder`: macOS on Apple Silicon, ffmpeg, Python 3.9 or newer with `mlx-whisper` in a
   venv, and the BlackHole 2ch audio driver for recording calls.
